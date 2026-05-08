@@ -290,7 +290,7 @@
         <div class="session-info">
             <div class="status">
                 <div class="status-dot" id="statusDot"></div>
-                <span id="statusText">Disconnected</span>
+                <span id="statusText">Connected</span>
             </div>
             <span class="session-id" id="sessionId">Session: --</span>
             <button class="toggle-panel" onclick="toggleVariablesPanel()">Variables</button>
@@ -306,8 +306,8 @@
                     <button class="quick-action" onclick="insertExample('a=100')">a=100</button>
                     <button class="quick-action" onclick="insertExample('a+b')">a+b</button>
                     <button class="quick-action" onclick="insertExample('flag=true')">flag=true</button>
-                    <button class="quick-action" onclick="insertExample('name=\"etl\"')">name="etl"</button>
-                    <button class="quick-action" onclick="insertExample('a>50 ? \"big\" : \"small\"')">三元运算</button>
+                    <button class="quick-action" onclick="insertExample('name="etl"')">name="etl"</button>
+                    <button class="quick-action" onclick="insertExample('a>50 ? "big" : "small"')">三元运算</button>
                     <button class="quick-action" onclick="insertExample('SQL: SELECT 1 as test')">SQL查询</button>
                 </div>
                 <button class="clear" onclick="clearConsole()">Clear</button>
@@ -317,8 +317,7 @@
                 <input type="text" id="expressionInput" placeholder="输入表达式，按Enter执行..." 
                        onkeypress="handleKeyPress(event)">
                 <div class="button-group">
-                    <button id="executeBtn" onclick="executeExpression()">Execute</button>
-                    <button id="connectBtn" onclick="toggleConnection()">Connect</button>
+                    <button id="executeBtn">Execute</button>
                 </div>
             </div>
         </div>
@@ -333,10 +332,15 @@
     </div>
 
     <script>
-        let ws = null;
-        let currentSessionId = null;
+        // 生成全局唯一SessionId
+        let currentSessionId = localStorage.getItem('etl-session-id');
+        if (!currentSessionId) {
+            currentSessionId = 'ETL-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9).toUpperCase();
+            localStorage.setItem('etl-session-id', currentSessionId);
+        }
+        
         let variables = {};
-
+        
         function log(message, type = 'info') {
             const output = document.getElementById('consoleOutput');
             const entry = document.createElement('div');
@@ -382,152 +386,22 @@
         function updateConnectionStatus(connected) {
             const dot = document.getElementById('statusDot');
             const text = document.getElementById('statusText');
-            const connectBtn = document.getElementById('connectBtn');
             const executeBtn = document.getElementById('executeBtn');
 
             if (connected) {
                 dot.className = 'status-dot connected';
                 text.textContent = 'Connected';
-                connectBtn.textContent = 'Disconnect';
                 executeBtn.disabled = false;
             } else {
                 dot.className = 'status-dot disconnected';
                 text.textContent = 'Disconnected';
-                connectBtn.textContent = 'Connect';
                 executeBtn.disabled = true;
             }
         }
 
-        function connect() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            //const wsUrl = `${protocol}//${window.location.host}/ws/expression`;
-const wsUrl = `${protocol}//localhost:8080/ws/expression`;
-            log('Connecting to ' + wsUrl, 'system');
-
-            ws = new WebSocket(wsUrl);
-
-            ws.onopen = function() {
-                log('WebSocket connection established', 'success');
-                updateConnectionStatus(true);
-            };
-
-            ws.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    handleMessage(data);
-                } catch (e) {
-                    log('Parse error: ' + e.message, 'error');
-                }
-            };
-
-            ws.onerror = function(error) {
-                log('WebSocket error', 'error');
-            };
-
-            ws.onclose = function() {
-                log('WebSocket connection closed', 'system');
-                updateConnectionStatus(false);
-                currentSessionId = null;
-                document.getElementById('sessionId').textContent = 'Session: --';
-                variables = {};
-                updateVariablesPanel();
-            };
-        }
-
-        function disconnect() {
-            if (ws) {
-                ws.close();
-                ws = null;
-            }
-        }
-
-        function toggleConnection() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                disconnect();
-            } else {
-                connect();
-            }
-        }
-
-        function handleMessage(data) {
-            switch (data.type) {
-                case 'SESSION':
-                    currentSessionId = data.sessionId;
-                    document.getElementById('sessionId').textContent = `Session: ${currentSessionId}`;
-                    log(`Session established: ${currentSessionId}`, 'success');
-                    break;
-                case 'RESULT':
-                    handleResult(data.data);
-                    break;
-                case 'ERROR':
-                    log(`Error: ${data.content}`, 'error');
-                    break;
-                case 'HEARTBEAT':
-                    break;
-            }
-        }
-
-        function handleResult(data) {
-            if (data.success) {
-                log(`Expression: ${data.expression}`, 'input');
-                
-                if (data.result !== null && data.result !== '') {
-                    const resultStr = typeof data.result === 'object' 
-                        ? JSON.stringify(data.result, null, 2) 
-                        : String(data.result);
-                    log(`Result: ${resultStr}`, 'result');
-                }
-
-                if (data.assignedVariables && Object.keys(data.assignedVariables).length > 0) {
-                    Object.assign(variables, data.assignedVariables);
-                    updateVariablesPanel();
-                    
-                    const varStr = Object.entries(data.assignedVariables)
-                        .map(([k, v]) => `${k}=${formatValue(v)}`)
-                        .join(', ');
-                    log(`Assigned: ${varStr}`, 'info');
-                }
-            } else {
-                log(`Error: ${data.errorMessage}`, 'error');
-            }
-        }
-
-        function formatValue(value) {
-            if (value === null) return 'null';
-            if (typeof value === 'string') return `"${value}"`;
-            if (typeof value === 'object') return JSON.stringify(value);
-            return String(value);
-        }
-
-        function executeExpression() {
-            const input = document.getElementById('expressionInput');
-            const expression = input.value.trim();
-
-            if (!expression) {
-                return;
-            }
-
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                log('Not connected. Please connect first.', 'error');
-                return;
-            }
-
-            log(`> ${expression}`, 'input');
-
-            const message = {
-                type: 'EXECUTE',
-                content: expression,
-                timestamp: new Date().toISOString()
-            };
-
-            ws.send(JSON.stringify(message));
-            input.value = '';
-        }
-
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') {
-                executeExpression();
-            }
+        function toggleVariablesPanel() {
+            const panel = document.getElementById('variablesPanel');
+            panel.classList.toggle('open');
         }
 
         function insertExample(text) {
@@ -539,9 +413,17 @@ const wsUrl = `${protocol}//localhost:8080/ws/expression`;
             document.getElementById('consoleOutput').innerHTML = '';
         }
 
-        function toggleVariablesPanel() {
-            const panel = document.getElementById('variablesPanel');
-            panel.classList.toggle('open');
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                executeExpression();
+            }
+        }
+
+        function formatValue(value) {
+            if (value === null) return 'null';
+            if (typeof value === 'string') return `"${value}"`;
+            if (typeof value === 'object') return JSON.stringify(value);
+            return String(value);
         }
 
         function updateVariablesPanel() {
@@ -561,16 +443,74 @@ const wsUrl = `${protocol}//localhost:8080/ws/expression`;
             }
         }
 
+        async function executeExpression() {
+            const input = document.getElementById('expressionInput');
+            const expression = input.value.trim();
+
+            if (!expression) {
+                return;
+            }
+
+            log(`> ${expression}`, 'input');
+
+            try {
+                const response = await fetch('/etl/expression/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain',
+                        'X-Session-Id': currentSessionId
+                    },
+                    body: expression
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                // 更新会话ID显示
+                document.getElementById('sessionId').textContent = `Session: ${result.sessionId}`;
+                
+                if (result.success) {
+                    if (result.finalResult !== null && result.finalResult !== '') {
+                        const resultStr = typeof result.finalResult === 'object' 
+                            ? JSON.stringify(result.finalResult, null, 2) 
+                            : String(result.finalResult);
+                        log(`Result: ${resultStr}`, 'result');
+                    }
+
+                    if (result.contextVars && Object.keys(result.contextVars).length > 0) {
+                        Object.assign(variables, result.contextVars);
+                        updateVariablesPanel();
+                        
+                        const varStr = Object.entries(result.contextVars)
+                            .map(([k, v]) => `${k}=${formatValue(v)}`)
+                            .join(', ');
+                        log(`Assigned: ${varStr}`, 'info');
+                    }
+                } else {
+                    log(`Error: ${result.errorMsg}`, 'error');
+                }
+            } catch (error) {
+                log(`Request failed: ${error.message}`, 'error');
+            }
+            
+            input.value = '';
+        }
+
+        // 初始化
         window.onload = function() {
             log('ETL Expression Engine Console Ready', 'system');
-            log('Click "Connect" to start a session', 'system');
+            log(`Session ID: ${currentSessionId}`, 'system');
+            document.getElementById('sessionId').textContent = `Session: ${currentSessionId}`;
+            updateConnectionStatus(true);
             updateVariablesPanel();
         };
 
+        // 页面卸载时保存会话ID
         window.onbeforeunload = function() {
-            if (ws) {
-                ws.close();
-            }
+            localStorage.setItem('etl-session-id', currentSessionId);
         };
     </script>
 </body>

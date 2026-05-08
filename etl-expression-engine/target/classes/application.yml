@@ -1,6 +1,6 @@
 server:
   port: 8080
-
+  
 spring:
   application:
     name: etl-expression-engine
@@ -20,6 +20,23 @@ spring:
     init:
       mode: always
       data-locations: classpath:data.sql
+  
+  redis:
+    host: 47.97.124.176
+    port: 6379
+    database: 0
+    timeout: 2000
+    password: ${REDIS_PASSWORD:redis2026!}
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: 10000
+  
+  threads:
+    virtual:
+      enabled: true
 
 etl:
   engine:

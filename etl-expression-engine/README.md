@@ -1,270 +1,150 @@
-# ETL流程编排专用表达式参数引擎
+# ETL表达式引擎
 
-## 项目概述
+ETL流程编排专用表达式参数引擎，支持MVEL2表达式计算、安全SQL查询、会话隔离等功能。
 
-ETL表达式参数引擎是一个基于SpringBoot 3.2.0和JDK 17构建的高性能表达式计算引擎，专为ETL数据编排场景设计。支持动态参数配置、变量定义、表达式计算以及SQL查询功能，通过WebSocket实现实时交互。
+## 架构演进
 
-## 技术栈
+✅ **当前架构：HTTP POST + Redis会话管理**
+- 后端：SpringBoot 3.4.6 + JDK21 + 虚拟线程 + ScopedValue + Record DTO
+- 前端：原生HTML/CSS/JavaScript + Fetch API
+- 会话管理：Redis分布式存储 + 自动过期
+- 安全机制：MVEL沙箱 + SQL黑名单 + 表达式超时
 
-- **JDK 17** - 核心运行环境
-- **SpringBoot 3.2.0** - 核心框架
-- **MVEL 2.5.2** - 表达式引擎
-- **WebSocket** - 实时通信
-- **H2 Database** - 嵌入式数据库（演示用）
+❌ **已移除：WebSocket长连接架构**
 
-## 架构设计
+## 快速启动
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Frontend Console                        │
-│                  (HTML + CSS + JavaScript)                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              │ WebSocket
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  WebSocket Handler Layer                     │
-│              ExpressionWebSocketHandler.java                 │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Context Management                        │
-│   ┌─────────────────────┐  ┌─────────────────────┐         │
-│   │ SessionContextManager│  │   ContextHolder     │         │
-│   │   (Session管理)       │  │   (ThreadLocal)     │         │
-│   └─────────────────────┘  └─────────────────────┘         │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     Engine Layer                             │
-│   ┌─────────────────────┐  ┌─────────────────────┐         │
-│   │  MvelSandboxEngine  │  │ SqlExecutionEngine  │         │
-│   │   (表达式计算)        │  │    (SQL查询)        │         │
-│   └─────────────────────┘  └─────────────────────┘         │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## 快速开始
-
-### 1. 环境要求
-- JDK 17+
+### 环境要求
+- JDK 21+
 - Maven 3.8+
+- Redis 6.0+（可选，用于分布式部署）
 
-### 2. 编译打包
-```bash
-cd etl-expression-engine
-mvn clean package -DskipTests
-```
+### 启动步骤
+1. **本地启动（无Redis）**：
+   ```bash
+   cd etl-expression-engine
+   mvn spring-boot:run
+   ```
+   访问 `http://localhost:8080`
 
-### 3. 启动服务
-```bash
-java -jar target/etl-expression-engine-1.0.0.jar
-```
+2. **Redis模式启动**：
+   - 启动Redis服务（默认配置：localhost:6379）
+   - 修改 `application.yml` 中的Redis配置（如需要）
+   - 启动应用
 
-或者双击 `start.bat` 文件启动
+## API文档
 
-### 4. 访问控制台
-打开浏览器访问: http://localhost:8080
+### HTTP POST接口
 
-## 核心功能
+**URL**: `POST /etl/expression/execute`
 
-### 1. 表达式计算
-支持MVEL2语法，包括：
-- 变量赋值: `a=100`
-- 算术运算: `a+b`, `a*b`
-- 逻辑运算: `a>b`, `flag1&&flag2`
-- 三元运算: `score>=60?"pass":"fail"`
-- 多行执行: `a=10; b=20; a+b`
+**请求头**:
+- `X-Session-Id`: 会话ID（可选，自动创建）
+- `Content-Type`: `text/plain`
 
-### 2. 会话隔离
-- 每个WebSocket连接独立会话
-- 变量上下文完全隔离
-- 会话超时自动清理
+**请求体**: 多行表达式字符串
 
-### 3. SQL查询
-- 支持SELECT只读查询
-- 拦截DML/DDL危险语句
-- SQL注入防护
-
-### 4. 安全沙箱
-- 禁止危险类和API
-- 表达式超时保护
-- 表达式长度限制
-
-## 表达式语法手册
-
-### 变量赋值
-```
-a = 100
-name = "etl"
-flag = true
-```
-
-### 算术运算
-```
-a + b
-a - b
-a * b
-a / b
-a % b
-```
-
-### 逻辑运算
-```
-a > b
-a >= b
-a < b
-a <= b
-a == b
-a != b
-flag1 && flag2
-flag1 || flag2
-!flag
-```
-
-### 三元运算
-```
-score >= 60 ? "pass" : "fail"
-a > b ? a : b
-```
-
-### 对象操作
-```
-user['name']
-list[0]
-```
-
-### 多行表达式
-```
-a = 10; b = 20; c = a + b; c * 2
-```
-
-### SQL查询
-```
-SQL: SELECT * FROM etl_config
-SQL: SELECT task_name, status FROM etl_task WHERE priority = 1
-```
-
-## 使用示例
-
-### 示例1: 基本计算
-```
-> a = 100
-Result: 100
-
-> b = 200
-Result: 200
-
-> a + b
-Result: 300
-```
-
-### 示例2: 三元运算
-```
-> score = 85
-Result: 85
-
-> score >= 60 ? "及格" : "不及格"
-Result: "及格"
-```
-
-### 示例3: 多行执行
-```
-> x = 10; y = 20; z = x + y; z * 2
-Result: 60
-Assigned: x=10, y=20, z=30
-```
-
-### 示例4: SQL查询
-```
-> SQL: SELECT * FROM etl_config
-Result: [{"ID":1,"CONFIG_KEY":"batch.size",...}]
-```
-
-## WebSocket接口
-
-### 连接地址
-```
-ws://localhost:8080/ws/expression
-```
-
-### 消息格式
-
-#### 执行请求
+**响应格式**: JSON
 ```json
 {
-  "type": "EXECUTE",
-  "content": "a=100; a*2"
-}
-```
-
-#### 执行响应
-```json
-{
-  "type": "RESULT",
-  "sessionId": "SESSION-ABC123",
-  "data": {
-    "success": true,
-    "result": 200,
-    "assignedVariables": {"a": 100}
+  "sessionId": "ETL-1234567890ABCDEF",
+  "originExpr": "a=100; b=a+1",
+  "success": true,
+  "finalResult": 101,
+  "errorMsg": null,
+  "contextVars": {
+    "a": 100,
+    "b": 101
   }
 }
 ```
 
-## 配置说明
+## 核心功能
 
+### 1. 表达式计算
+- ✅ 多行表达式顺序执行
+- ✅ 变量赋值：`a=100`, `name="etl"`
+- ✅ 算术运算：`a+b`, `a*2`
+- ✅ 逻辑运算：`a>50 ? "big" : "small"`
+- ✅ 对象方法调用：`list.size()`
+
+### 2. 安全SQL查询
+- ✅ 只读SELECT执行：`SQL: SELECT * FROM users WHERE id=1`
+- ✅ SQL注入防护：自动检测恶意模式
+- ✅ DML/DDL拦截：禁止INSERT/UPDATE/DELETE/DROP等
+
+### 3. 会话管理
+- ✅ 分布式Redis存储
+- ✅ 自动过期：30分钟无操作自动清理
+- ✅ 页面刷新保持：localStorage持久化SessionId
+- ✅ 跨请求隔离：每个SessionId独立变量上下文
+
+### 4. 安全机制
+- ✅ MVEL沙箱：禁用Runtime/System/Process等危险API
+- ✅ 执行超时：默认5秒，可配置
+- ✅ 表达式长度限制：默认10000字符
+- ✅ 输入验证：严格语法检查
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| **后端** | SpringBoot 3.4.6, JDK21, MVEL2, JDBC, Redis, H2 |
+| **前端** | 原生HTML/CSS/JavaScript, Fetch API |
+| **架构** | 虚拟线程, ScopedValue替代ThreadLocal, Record DTO |
+| **安全** | 三层防护：沙箱+超时+输入验证 |
+
+## 迁移注意事项
+
+### WebSocket → HTTP迁移要点
+- **通信方式**：WebSocket长连接 → HTTP短连接
+- **会话管理**：内存存储 → Redis分布式存储
+- **线程模型**：传统线程 → 虚拟线程 + ScopedValue
+- **前端适配**：WebSocket API → Fetch API
+- **错误处理**：连接异常 → HTTP状态码处理
+
+### 兼容性保证
+- ✅ UI界面完全一致（样式、布局、配色）
+- ✅ 交互体验完全一致（回车提交、变量面板、日志滚动）
+- ✅ 功能特性完全一致（多行表达式、SQL查询、变量赋值）
+- ✅ 安全能力完全一致（沙箱、超时、黑名单）
+
+## 开发指南
+
+### 添加新依赖
+```xml
+<!-- pom.xml -->
+<dependency>
+    <groupId>com.example</groupId>
+    <artifactId>example-library</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+### 配置Redis集群
 ```yaml
+# application.yml
+spring:
+  redis:
+    cluster:
+      nodes: redis1:6379,redis2:6379,redis3:6379
+```
+
+### 自定义表达式超时
+```yaml
+# application.yml
 etl:
   engine:
-    expression-timeout: 5000    # 表达式执行超时(毫秒)
-    max-expression-length: 10000 # 最大表达式长度
-    enable-sql-execution: true   # 是否启用SQL执行
-    sql-readonly: true           # SQL只读模式
+    expression-timeout: 10000 # 10秒
 ```
 
-## 测试覆盖
+## 贡献指南
 
-运行测试:
-```bash
-mvn test
-```
+欢迎提交Issue和Pull Request！
 
-项目包含完整的单元测试:
-- `MvelSandboxEngineTest` - 表达式引擎测试
-- `SqlExecutionEngineTest` - SQL引擎测试
-- `SessionContextManagerTest` - 会话管理测试
-- `ContextHolderTest` - ThreadLocal上下文测试
+- Bug报告：请提供复现步骤和错误日志
+- 功能建议：请描述使用场景和预期效果
+- 代码贡献：请遵循Java开发规范，添加单元测试
 
-## 安全机制
-
-### MVEL沙箱安全
-- 禁止危险关键字: import, package, new, class等
-- 禁止危险类: Runtime, System, ProcessBuilder, File等
-- 表达式超时保护(默认5秒)
-- 表达式长度限制(默认10000字符)
-
-### SQL安全
-- 只允许SELECT查询
-- 拦截INSERT/UPDATE/DELETE/DROP等语句
-- SQL注入防护
-- 查询超时限制
-
-## 性能优化
-
-1. 线程池处理高并发请求
-2. ConcurrentHashMap保证线程安全
-3. 会话超时自动清理(默认30分钟)
-4. 表达式编译缓存优化
-
-## 注意事项
-
-1. 会话隔离，不同浏览器连接互不影响
-2. SQL仅支持只读查询，不允许修改操作
-3. 表达式执行有超时限制，防止死循环
-4. H2数据库控制台: http://localhost:8080/h2-console (JDBC URL: jdbc:h2:mem:testdb)
-
-## License
-
-MIT License
+---
+© 2026 ETL Expression Engine. All rights reserved.
