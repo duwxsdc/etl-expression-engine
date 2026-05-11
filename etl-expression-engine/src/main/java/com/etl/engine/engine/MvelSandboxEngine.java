@@ -72,9 +72,14 @@ public class MvelSandboxEngine {
     }
 
     public ExpressionResult execute(String expression, SessionContext sessionContext) {
+        return execute(expression, sessionContext, null);
+    }
+    
+    public ExpressionResult execute(String expression, SessionContext sessionContext, Map<String, Object> externalVars) {
         if (expression == null || expression.isBlank()) {
+            String sessionId = sessionContext != null ? sessionContext.getSessionId() : "unknown";
             return ExpressionResult.failure(
-                sessionContext.getSessionId(),
+                sessionId,
                 expression,
                 "表达式不能为空"
             );
@@ -82,40 +87,45 @@ public class MvelSandboxEngine {
 
         String trimmedExpression = expression.trim();
         if (trimmedExpression.length() > properties.getMaxExpressionLength()) {
+            String sessionId = sessionContext != null ? sessionContext.getSessionId() : "unknown";
             return ExpressionResult.failure(
-                sessionContext.getSessionId(),
+                sessionId,
                 expression,
                 "表达式长度超过限制: " + properties.getMaxExpressionLength()
             );
         }
 
         if (!validateExpression(trimmedExpression)) {
+            String sessionId = sessionContext != null ? sessionContext.getSessionId() : "unknown";
             return ExpressionResult.failure(
-                sessionContext.getSessionId(),
+                sessionId,
                 expression,
                 "表达式包含禁止的内容"
             );
         }
 
         try {
-            return executeWithTimeout(trimmedExpression, sessionContext);
+            return executeWithTimeout(trimmedExpression, sessionContext, externalVars);
         } catch (Exception e) {
+            String sessionId = sessionContext != null ? sessionContext.getSessionId() : "unknown";
             logger.error("表达式执行异常: sessionId={}, expression={}", 
-                    sessionContext.getSessionId(), expression, e);
+                    sessionId, expression, e);
             return ExpressionResult.failure(
-                sessionContext.getSessionId(),
+                sessionId,
                 expression,
                 "执行异常: " + e.getMessage()
             );
         }
     }
 
-    private ExpressionResult executeWithTimeout(String expression, SessionContext sessionContext) {
+    private ExpressionResult executeWithTimeout(String expression, SessionContext sessionContext, Map<String, Object> externalVars) {
         try {
             Future<ExpressionResult> future = executorService.submit(() -> {
                 try {
-                    ContextHolder.setContext(sessionContext);
-                    return executeInternal(expression, sessionContext);
+                    if (sessionContext != null) {
+                        ContextHolder.setContext(sessionContext);
+                    }
+                    return executeInternal(expression, sessionContext, externalVars);
                 } finally {
                     ContextHolder.clearContext();
                 }
@@ -123,37 +133,41 @@ public class MvelSandboxEngine {
 
             return future.get(properties.getExpressionTimeout(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
+            String sessionId = sessionContext != null ? sessionContext.getSessionId() : "unknown";
             logger.warn("表达式执行超时: sessionId={}, expression={}", 
-                    sessionContext.getSessionId(), expression);
+                    sessionId, expression);
             return ExpressionResult.failure(
-                sessionContext.getSessionId(),
+                sessionId,
                 expression,
                 "表达式执行超时, 超过 " + properties.getExpressionTimeout() + "ms"
             );
         } catch (ExecutionException e) {
+            String sessionId = sessionContext != null ? sessionContext.getSessionId() : "unknown";
             Throwable cause = e.getCause();
             String errorMsg = cause != null ? cause.getMessage() : e.getMessage();
             logger.error("表达式执行错误: sessionId={}, error={}", 
-                    sessionContext.getSessionId(), errorMsg);
+                    sessionId, errorMsg);
             return ExpressionResult.failure(
-                sessionContext.getSessionId(),
+                sessionId,
                 expression,
                 "执行错误: " + errorMsg
             );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            String sessionId = sessionContext != null ? sessionContext.getSessionId() : "unknown";
             return ExpressionResult.failure(
-                sessionContext.getSessionId(),
+                sessionId,
                 expression,
                 "执行被中断"
             );
         }
     }
 
-    private ExpressionResult executeInternal(String expression, SessionContext sessionContext) {
+    private ExpressionResult executeInternal(String expression, SessionContext sessionContext, Map<String, Object> externalVars) {
         String[] lines = expression.split(";\\s*");
         Object lastResult = null;
         Map<String, Object> assignedVariables = new HashMap<>();
+        String sessionId = sessionContext != null ? sessionContext.getSessionId() : "unknown";
 
         for (String line : lines) {
             String trimmedLine = line.trim();
@@ -161,7 +175,7 @@ public class MvelSandboxEngine {
                 continue;
             }
 
-            Object result = executeSingleExpression(trimmedLine, sessionContext);
+            Object result = executeSingleExpression(trimmedLine, sessionContext, externalVars);
             lastResult = result;
 
             Matcher matcher = ASSIGNMENT_PATTERN.matcher(trimmedLine);
@@ -172,14 +186,14 @@ public class MvelSandboxEngine {
         }
 
         return ExpressionResult.success(
-            sessionContext.getSessionId(),
+            sessionId,
             expression,
             lastResult,
             assignedVariables
         );
     }
 
-    private Object executeSingleExpression(String expression, SessionContext sessionContext) {
+    private Object executeSingleExpression(String expression, SessionContext sessionContext, Map<String, Object> externalVars) {
         Matcher assignmentMatcher = ASSIGNMENT_PATTERN.matcher(expression);
         
         if (assignmentMatcher.matches()) {
@@ -190,21 +204,31 @@ public class MvelSandboxEngine {
                 throw new IllegalArgumentException("无效的变量名: " + varName);
             }
 
-            Object value = evaluateExpression(valueExpression, sessionContext);
-            sessionContext.setVariable(varName, value);
+            Object value = evaluateExpression(valueExpression, sessionContext, externalVars);
+            if (sessionContext != null) {
+                sessionContext.setVariable(varName, value);
+            }
             return value;
         }
 
-        return evaluateExpression(expression, sessionContext);
+        return evaluateExpression(expression, sessionContext, externalVars);
     }
 
-    private Object evaluateExpression(String expression, SessionContext sessionContext) {
+    private Object evaluateExpression(String expression, SessionContext sessionContext, Map<String, Object> externalVars) {
         if (isSqlQuery(expression)) {
             return executeSqlQuery(expression);
         }
 
         ParserContext parserContext = createSafeParserContext();
-        Map<String, Object> context = new HashMap<>(sessionContext.getAllVariables());
+        Map<String, Object> context = new HashMap<>();
+        
+        if (externalVars != null) {
+            context.putAll(externalVars);
+        }
+        
+        if (sessionContext != null) {
+            context.putAll(sessionContext.getAllVariables());
+        }
 
         try {
             Serializable compiled = MVEL.compileExpression(expression, parserContext);

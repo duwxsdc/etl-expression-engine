@@ -13,20 +13,20 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "etl.engine")
 public class EngineProperties {
 
+    private String nodeId = "node-1";
     private long expressionTimeout = 5000L;
     private int maxExpressionLength = 10000;
     private boolean enableSqlExecution = true;
     private boolean sqlReadonly = true;
+    private String broadcastTopic = "mvel-broadcast";
+    private int idempotentWindowSeconds = 30;
 
-    public EngineProperties() {
+    public String getNodeId() {
+        return nodeId;
     }
 
-    public EngineProperties(long expressionTimeout, int maxExpressionLength, 
-                           boolean enableSqlExecution, boolean sqlReadonly) {
-        this.expressionTimeout = expressionTimeout;
-        this.maxExpressionLength = maxExpressionLength;
-        this.enableSqlExecution = enableSqlExecution;
-        this.sqlReadonly = sqlReadonly;
+    public void setNodeId(String nodeId) {
+        this.nodeId = nodeId;
     }
 
     public long getExpressionTimeout() {
@@ -59,5 +59,21 @@ public class EngineProperties {
 
     public void setSqlReadonly(boolean sqlReadonly) {
         this.sqlReadonly = sqlReadonly;
+    }
+
+    public String getBroadcastTopic() {
+        return broadcastTopic;
+    }
+
+    public void setBroadcastTopic(String broadcastTopic) {
+        this.broadcastTopic = broadcastTopic;
+    }
+
+    public int getIdempotentWindowSeconds() {
+        return idempotentWindowSeconds;
+    }
+
+    public void setIdempotentWindowSeconds(int idempotentWindowSeconds) {
+        this.idempotentWindowSeconds = idempotentWindowSeconds;
     }
 }

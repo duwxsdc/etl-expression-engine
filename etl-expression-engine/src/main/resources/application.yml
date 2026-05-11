@@ -21,12 +21,22 @@ spring:
       mode: always
       data-locations: classpath:data.sql
 
+rocketmq:
+  name-server: localhost:9876
+  producer:
+    group: etl-expression-producer
+    send-message-timeout: 3000
+    retry-times-when-send-failed: 2
+
 etl:
   engine:
+    node-id: ${HOSTNAME:node-1}
     expression-timeout: 5000
     max-expression-length: 10000
     enable-sql-execution: true
     sql-readonly: true
+    broadcast-topic: mvel-broadcast
+    idempotent-window-seconds: 30
 
 logging:
   level:

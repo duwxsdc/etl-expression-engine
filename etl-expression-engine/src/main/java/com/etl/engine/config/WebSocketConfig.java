@@ -1,6 +1,6 @@
 package com.etl.engine.config;
 
-import com.etl.engine.handler.ExpressionWebSocketHandler;
+import com.etl.engine.handler.DistributedWebSocketHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
@@ -16,15 +16,15 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
 
-    private final ExpressionWebSocketHandler expressionWebSocketHandler;
+    private final DistributedWebSocketHandler distributedWebSocketHandler;
 
-    public WebSocketConfig(ExpressionWebSocketHandler expressionWebSocketHandler) {
-        this.expressionWebSocketHandler = expressionWebSocketHandler;
+    public WebSocketConfig(DistributedWebSocketHandler distributedWebSocketHandler) {
+        this.distributedWebSocketHandler = distributedWebSocketHandler;
     }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(expressionWebSocketHandler, "/ws/expression")
+        registry.addHandler(distributedWebSocketHandler, "/ws/expression")
                 .setAllowedOrigins("*");
     }
 }

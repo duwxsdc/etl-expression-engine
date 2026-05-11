@@ -512,10 +512,16 @@ const wsUrl = `${protocol}//localhost:8080/ws/expression`;
                 return;
             }
 
+            if (!currentSessionId) {
+                log('Session not established. Please wait for connection.', 'error');
+                return;
+            }
+
             log(`> ${expression}`, 'input');
 
             const message = {
                 type: 'EXECUTE',
+                sessionId: currentSessionId,
                 content: expression,
                 timestamp: new Date().toISOString()
             };

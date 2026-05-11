@@ -41,7 +41,11 @@ class MvelSandboxEngineTest {
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
         SqlExecutionEngine sqlEngine = new SqlExecutionEngine(jdbcTemplate);
         
-        EngineProperties properties = new EngineProperties(5000L, 10000, true, true);
+        EngineProperties properties = new EngineProperties();
+        properties.setExpressionTimeout(5000L);
+        properties.setMaxExpressionLength(10000);
+        properties.setEnableSqlExecution(true);
+        properties.setSqlReadonly(true);
         engine = new MvelSandboxEngine(properties, sqlEngine);
         
         testContext = new SessionContext("TEST-SESSION");
@@ -181,7 +185,11 @@ class MvelSandboxEngineTest {
     @Test
     @DisplayName("测试超时限制")
     void testTimeout() {
-        EngineProperties shortTimeoutProps = new EngineProperties(100L, 10000, true, true);
+        EngineProperties shortTimeoutProps = new EngineProperties();
+        shortTimeoutProps.setExpressionTimeout(100L);
+        shortTimeoutProps.setMaxExpressionLength(10000);
+        shortTimeoutProps.setEnableSqlExecution(true);
+        shortTimeoutProps.setSqlReadonly(true);
         DataSource dataSource = new EmbeddedDatabaseBuilder()
                 .setType(EmbeddedDatabaseType.H2)
                 .build();
