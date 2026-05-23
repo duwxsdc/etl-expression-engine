@@ -41,7 +41,6 @@ etl-expression-engine/
     |   |   |   |-- ExecuteResult.java                # HTTP执行结果（Record）
     |   |   |   |-- ExpressionResult.java             # 表达式执行结果（Record）
     |   |   |   |-- SqlQueryResult.java               # SQL查询结果（Record）
-    |   |   |   |-- WebSocketMessage.java             # WebSocket消息（Record）
     |   |   |-- mvel/                                 # MVEL核心包（当前版本，ScopedValue实现）
     |   |   |   |-- MvelExpressionEngine.java         # 表达式执行引擎
     |   |   |   |-- MvelSecuritySandbox.java          # 安全沙箱
