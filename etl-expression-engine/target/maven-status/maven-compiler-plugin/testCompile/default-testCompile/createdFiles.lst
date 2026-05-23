@@ -1,4 +1,0 @@
-com\etl\engine\SessionContextManagerTest.class
-com\etl\engine\SqlExecutionEngineTest.class
-com\etl\engine\MvelSandboxEngineTest.class
-com\etl\engine\ContextHolderTest.class
