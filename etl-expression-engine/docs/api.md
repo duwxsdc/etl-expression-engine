@@ -282,6 +282,103 @@ sqlValue("SELECT count(*) FROM etl_config")
 4
 ```
 
+### 4.3 http() - 创建HTTP请求构建器
+
+**函数签名**：
+
+```
+HttpRequestBuilder http(String url)
+```
+
+**功能说明**：
+
+创建一个HTTP请求构建器，用于构建和执行HTTP请求。支持链式调用，可配置请求头、请求体、认证信息、超时时间等参数。
+
+**参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| url | String | 是 | 请求目标URL，支持HTTP/HTTPS协议 |
+
+**返回值**：
+
+HttpRequestBuilder对象，支持链式调用配置请求参数。
+
+**链式方法**：
+
+| 方法 | 参数 | 说明 |
+|------|------|------|
+| `header(key, value)` | String, String | 添加单个请求头 |
+| `headers(map)` | Map<String, String> | 批量添加请求头 |
+| `body(data)` | Object | 设置请求体（字符串或对象） |
+| `bodyJson(data)` | Object | 设置JSON格式请求体，自动序列化 |
+| `bodyXml(xml)` | String | 设置XML格式请求体 |
+| `bodyForm(map)` | Map<String, String> | 设置表单格式请求体 |
+| `queryVariable(key, value)` | String, Object | 添加URL查询参数 |
+| `queryVariables(map)` | Map<String, Object> | 批量添加URL查询参数 |
+| `pathVariable(key, value)` | String, Object | 添加路径变量 |
+| `pathVariables(map)` | Map<String, Object> | 批量添加路径变量 |
+| `contentType(type)` | String | 设置Content-Type头 |
+| `accept(type)` | String | 设置Accept头 |
+| `basicAuth(user, pass)` | String, String | 设置Basic认证 |
+| `bearerAuth(token)` | String | 设置Bearer Token认证 |
+| `timeout(millis)` | int | 设置请求超时时间（毫秒） |
+| `retry(maxRetries)` | int | 设置重试次数 |
+| `retry(maxRetries, delay)` | int, long | 设置重试次数和间隔 |
+| `sync()` | - | 设置为同步模式（默认） |
+| `async()` | - | 设置为异步模式 |
+
+**执行方法**：
+
+| 方法 | 说明 | 返回类型 |
+|------|------|----------|
+| `get()` | 执行GET请求 | HttpResponse |
+| `post()` | 执行POST请求 | HttpResponse |
+| `put()` | 执行PUT请求 | HttpResponse |
+| `delete()` | 执行DELETE请求 | HttpResponse |
+| `patch()` | 执行PATCH请求 | HttpResponse |
+| `request(method)` | 执行指定方法请求 | HttpResponse |
+| `asyncGet()` | 异步执行GET请求 | AsyncHttpRequest |
+| `asyncPost()` | 异步执行POST请求 | AsyncHttpRequest |
+
+**响应处理**：
+
+| 方法 | 说明 | 返回类型 |
+|------|------|----------|
+| `statusCode()` | 获取HTTP状态码 | int |
+| `headers()` | 获取响应头 | Map<String, String> |
+| `body()` | 获取响应体处理器 | ResponseBody |
+| `body().asString()` | 响应体作为字符串 | String |
+| `body().asJson()` | 响应体作为JsonNode | JsonNode |
+| `body().asMap()` | 响应体作为Map | Map<String, Object> |
+| `body().asXml()` | 响应体作为XML Document | Document |
+| `body().asBean(clazz)` | 响应体反序列化为对象 | T |
+
+**示例**：
+
+```
+response = http('https://api.example.com/users')
+    .header('X-API-Key', 'your-api-key')
+    .queryVariable('page', 1)
+    .queryVariable('size', 10)
+    .get();
+
+statusCode = response.statusCode();
+data = response.body().asMap();
+```
+
+### 4.4 httpRequest() - 快速创建HTTP请求
+
+**函数签名**：
+
+```
+HttpRequestBuilder httpRequest(String url)
+```
+
+**功能说明**：
+
+与`http()`函数功能相同，提供另一个函数名入口。
+
 ---
 
 ## 5. 表达式语法
@@ -684,6 +781,157 @@ Content-Type: text/plain
 
 **说明**：未提供`X-Session-Id`时，系统自动创建新会话并返回生成的`sessionId`。客户端应在后续请求中通过`X-Session-Id`请求头传回该值，以保持会话连续性。
 
+### 7.10 HTTP GET请求
+
+**请求**：
+
+```
+POST /etl/expression/execute
+Content-Type: text/plain
+X-Session-Id: ETL-A1B2C3D4E5F67890
+
+result = http('https://httpbin.org/get')
+    .queryVariable('name', 'ETL')
+    .queryVariable('version', '1.0')
+    .header('X-Custom-Header', 'TestValue')
+    .get()
+    .body()
+    .asMap();
+```
+
+**响应**：
+
+```json
+{
+  "sessionId": "ETL-A1B2C3D4E5F67890",
+  "originExpr": "result = http('https://httpbin.org/get')...",
+  "success": true,
+  "finalResult": {
+    "args": {
+      "name": "ETL",
+      "version": "1.0"
+    },
+    "headers": {
+      "X-Custom-Header": "TestValue",
+      "Host": "httpbin.org"
+    },
+    "url": "https://httpbin.org/get?name=ETL&version=1.0"
+  },
+  "errorMsg": null,
+  "contextVars": {
+    "result": {...}
+  }
+}
+```
+
+### 7.11 HTTP POST请求（JSON）
+
+**请求**：
+
+```
+POST /etl/expression/execute
+Content-Type: text/plain
+X-Session-Id: ETL-A1B2C3D4E5F67890
+
+response = http('https://httpbin.org/post')
+    .contentType('application/json')
+    .bodyJson({'name': 'ETL', 'version': '1.0', 'features': ['sql', 'http']})
+    .post();
+
+statusCode = response.statusCode();
+body = response.body().asMap();
+```
+
+**响应**：
+
+```json
+{
+  "sessionId": "ETL-A1B2C3D4E5F67890",
+  "originExpr": "response = http('https://httpbin.org/post')...",
+  "success": true,
+  "finalResult": {
+    "args": {},
+    "data": "{\"name\":\"ETL\",\"version\":\"1.0\",\"features\":[\"sql\",\"http\"]}",
+    "json": {
+      "name": "ETL",
+      "version": "1.0",
+      "features": ["sql", "http"]
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  },
+  "errorMsg": null,
+  "contextVars": {
+    "statusCode": 200,
+    "body": {...}
+  }
+}
+```
+
+### 7.12 HTTP Basic认证请求
+
+**请求**：
+
+```
+POST /etl/expression/execute
+Content-Type: text/plain
+X-Session-Id: ETL-A1B2C3D4E5F67890
+
+result = http('https://httpbin.org/basic-auth/user/pass')
+    .basicAuth('user', 'pass')
+    .get()
+    .body()
+    .asMap();
+```
+
+**响应**：
+
+```json
+{
+  "sessionId": "ETL-A1B2C3D4E5F67890",
+  "originExpr": "result = http('https://httpbin.org/basic-auth/user/pass')...",
+  "success": true,
+  "finalResult": {
+    "authenticated": true,
+    "user": "user"
+  },
+  "errorMsg": null,
+  "contextVars": {
+    "result": {...}
+  }
+}
+```
+
+### 7.13 HTTP请求错误处理
+
+**请求**：
+
+```
+POST /etl/expression/execute
+Content-Type: text/plain
+
+errorResult = http('https://httpbin.org/status/404').get();
+errorResult.statusCode();
+```
+
+**响应**：
+
+```json
+{
+  "sessionId": "ETL-D4E5F6G7H8I9J0K1",
+  "originExpr": "errorResult = http('https://httpbin.org/status/404').get();...",
+  "success": true,
+  "finalResult": 404,
+  "errorMsg": null,
+  "contextVars": {
+    "errorResult": {...}
+  }
+}
+```
+
+**说明**：HTTP错误状态码（如404、500）不会导致表达式执行失败，需要通过`statusCode()`方法检查响应状态。
+
 ---
 
 ## 8. 错误码参考
@@ -710,3 +958,286 @@ Content-Type: text/plain
 |--------|------|------|
 | 200 | 请求成功 | 正常响应，包括表达式执行成功和失败 |
 | 500 | 服务器错误 | 系统内部异常，如数据库连接失败等 |
+
+---
+
+## 附录：MVEL HTTP请求使用指南
+
+### 一、基本语法规则
+
+#### 1.1 链式调用
+
+HTTP请求采用链式调用模式，每个配置方法返回构建器自身，可以连续调用：
+
+```
+http('url')
+    .配置方法1(参数)
+    .配置方法2(参数)
+    .执行方法()
+    .响应处理方法()
+```
+
+#### 1.2 执行顺序
+
+链式调用按书写顺序执行，但必须遵循以下规则：
+
+1. **配置方法**（header、body、auth等）必须在**执行方法**（get、post等）之前
+2. **执行方法**只能调用一次
+3. **响应处理方法**（statusCode、body等）必须在**执行方法**之后
+
+#### 1.3 字符串引号
+
+在MVEL表达式中，字符串使用单引号：
+
+```
+http('https://api.example.com')  // 正确
+http("https://api.example.com")  // 也正确，但推荐单引号
+```
+
+### 二、典型使用场景
+
+#### 2.1 调用REST API获取数据
+
+```
+users = http('https://api.example.com/users')
+    .header('Authorization', 'Bearer token123')
+    .queryVariable('page', 1)
+    .queryVariable('limit', 20)
+    .get()
+    .body()
+    .asMap();
+
+users.data;
+```
+
+#### 2.2 提交JSON数据
+
+```
+result = http('https://api.example.com/orders')
+    .contentType('application/json')
+    .bodyJson({
+        'orderId': 'ORD-001',
+        'items': [
+            {'productId': 'P001', 'quantity': 2},
+            {'productId': 'P002', 'quantity': 1}
+        ],
+        'customer': {'name': '张三', 'phone': '13800138000'}
+    })
+    .post()
+    .body()
+    .asMap();
+```
+
+#### 2.3 提交表单数据
+
+```
+loginResult = http('https://api.example.com/login')
+    .bodyForm({
+        'username': 'admin',
+        'password': 'password123'
+    })
+    .post()
+    .body()
+    .asMap();
+```
+
+#### 2.4 带认证的API调用
+
+**Basic认证**：
+```
+data = http('https://api.example.com/protected')
+    .basicAuth('username', 'password')
+    .get()
+    .body()
+    .asMap();
+```
+
+**Bearer Token认证**：
+```
+data = http('https://api.example.com/protected')
+    .bearerAuth('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...')
+    .get()
+    .body()
+    .asMap();
+```
+
+#### 2.5 带重试机制的请求
+
+```
+result = http('https://api.example.com/unstable')
+    .retry(3, 1000)  // 最多重试3次，每次间隔1秒
+    .get()
+    .body()
+    .asString();
+```
+
+#### 2.6 设置超时时间
+
+```
+result = http('https://api.example.com/slow')
+    .timeout(30000)  // 30秒超时
+    .get()
+    .body()
+    .asString();
+```
+
+#### 2.7 批量处理API响应
+
+```
+responses = [];
+for (i : {1, 2, 3}) {
+    resp = http('https://api.example.com/items/' + i).get().body().asMap();
+    responses.add(resp);
+}
+responses;
+```
+
+### 三、响应处理详解
+
+#### 3.1 获取状态码
+
+```
+response = http('https://api.example.com/data').get();
+code = response.statusCode();
+
+if (code == 200) {
+    'success';
+} else if (code == 404) {
+    'not found';
+} else {
+    'error';
+}
+```
+
+#### 3.2 获取响应头
+
+```
+response = http('https://api.example.com/data').get();
+headers = response.headers();
+contentType = headers['Content-Type'];
+```
+
+#### 3.3 响应体解析方式
+
+| 方法 | 适用场景 | 返回类型 |
+|------|----------|----------|
+| `asString()` | 纯文本、HTML、XML字符串 | String |
+| `asMap()` | JSON对象 | Map<String, Object> |
+| `asJson()` | 需要操作JSON节点 | JsonNode |
+| `asXml()` | XML响应，需要DOM操作 | Document |
+
+#### 3.4 处理JSON数组响应
+
+```
+response = http('https://api.example.com/users').get();
+users = response.body().asMap();
+
+users是一个Map，如果API返回的是数组，通常包装在某个字段中：
+users.data  // 数组数据
+users.total // 总数
+```
+
+### 四、注意事项
+
+#### 4.1 HTTPS证书
+
+系统默认信任所有HTTPS证书。在生产环境中，建议：
+- 使用受信任CA签发的证书
+- 配置Java信任库
+
+#### 4.2 连接超时
+
+默认超时时间由系统配置决定，可通过`.timeout(millis)`方法覆盖：
+
+```
+http('url').timeout(5000).get()  // 5秒超时
+```
+
+#### 4.3 响应状态码处理
+
+HTTP错误状态码不会抛出异常，需要手动检查：
+
+```
+response = http('https://api.example.com/data').get();
+if (response.statusCode() >= 200 && response.statusCode() < 300) {
+    response.body().asMap();
+} else {
+    '请求失败: ' + response.statusCode();
+}
+```
+
+#### 4.4 空响应处理
+
+某些API可能返回空响应体，调用解析方法会返回null：
+
+```
+body = http('url').get().body().asString();
+if (body != null) {
+    body;
+} else {
+    '空响应';
+}
+```
+
+#### 4.5 大响应体
+
+对于大响应体，建议：
+- 使用`.asString()`而非`.asMap()`减少内存占用
+- 分页请求数据
+
+#### 4.6 并发请求
+
+MVEL表达式在虚拟线程中执行，支持并发请求：
+
+```
+// 串行请求（表达式内）
+r1 = http('url1').get();
+r2 = http('url2').get();
+
+// 异步请求（需要特殊处理）
+async1 = http('url1').asyncGet();
+async2 = http('url2').asyncGet();
+r1 = async1.get(5000);  // 等待结果，超时5秒
+r2 = async2.get(5000);
+```
+
+### 五、常见错误及解决
+
+| 错误信息 | 原因 | 解决方案 |
+|----------|------|----------|
+| `unable to resolve method` | 方法名拼写错误 | 检查方法名，如`queryVariable`而非`query` |
+| `Connection refused` | 目标服务未启动 | 检查目标URL和服务状态 |
+| `Connection timed out` | 网络超时 | 增加`.timeout()`值或检查网络 |
+| `SSL handshake failed` | SSL证书问题 | 检查HTTPS证书配置 |
+| `JSON parse error` | 响应非JSON格式 | 使用`.asString()`而非`.asMap()` |
+
+### 六、最佳实践
+
+1. **使用变量存储响应**，便于后续处理和调试：
+   ```
+   response = http('url').get();
+   code = response.statusCode();
+   data = response.body().asMap();
+   ```
+
+2. **检查状态码后再处理响应体**：
+   ```
+   response = http('url').get();
+   response.statusCode() == 200 ? response.body().asMap() : null;
+   ```
+
+3. **设置合理的超时时间**，避免长时间等待：
+   ```
+   http('url').timeout(10000).get();
+   ```
+
+4. **对不稳定服务使用重试机制**：
+   ```
+   http('url').retry(3, 1000).get();
+   ```
+
+5. **敏感信息不要硬编码**，使用变量传递：
+   ```
+   token = contextVars['apiToken'];
+   http('url').bearerAuth(token).get();
+   ```

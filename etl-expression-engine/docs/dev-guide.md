@@ -45,7 +45,18 @@ etl-expression-engine/
     |   |   |   |-- MvelExpressionEngine.java         # 表达式执行引擎
     |   |   |   |-- MvelSecuritySandbox.java          # 安全沙箱
     |   |   |   |-- SqlFunction.java                  # SQL函数桥接
-    |   |   |-- sql/                                  # SQL执行包（当前版本）
+    |   |   |   |-- HttpFunction.java                 # HTTP请求函数桥接
+    |   |   |-- http/                                 # HTTP请求包
+    |   |   |   |-- HttpRequestBuilder.java           # HTTP请求构建器接口
+    |   |   |   |-- HttpRequestBuilderImpl.java       # HTTP请求构建器实现
+    |   |   |   |-- HttpResponse.java                 # HTTP响应接口
+    |   |   |   |-- HttpResponseImpl.java             # HTTP响应实现
+    |   |   |   |-- HttpClientAdapter.java            # HTTP客户端适配器接口
+    |   |   |   |-- JavaHttpClientAdapter.java        # JDK HttpClient适配器
+    |   |   |   |-- AsyncHttpRequest.java             # 异步请求接口
+    |   |   |   |-- HttpInterceptor.java              # HTTP拦截器
+    |   |   |   |-- HttpException.java                # HTTP异常类
+    |   |-- sql/                                  # SQL执行包（当前版本）
     |   |   |   |-- SqlExecuteEngine.java             # SQL执行引擎
     |   |   |-- util/                                 # 工具类包
     |   |       |-- DateTimeUtils.java                # 日期时间工具
@@ -79,7 +90,8 @@ etl-expression-engine/
 | controller | 请求处理 | HTTP接口的接收和响应 |
 | engine | 旧版引擎 | 基于ThreadLocal的实现，保留作为参考 |
 | model | 数据模型 | 不可变Record类和值对象 |
-| mvel | MVEL核心 | 当前版本的表达式引擎、安全沙箱和SQL函数桥接 |
+| mvel | MVEL核心 | 当前版本的表达式引擎、安全沙箱、SQL函数桥接和HTTP函数桥接 |
+| http | HTTP请求 | MVEL表达式内的HTTP请求功能，链式API设计 |
 | sql | SQL执行 | 当前版本的SQL执行引擎 |
 | util | 工具类 | 通用工具方法 |
 
@@ -158,7 +170,93 @@ SQL函数桥接类，将SqlExecuteEngine的查询能力暴露给MVEL表达式。
 - 通过`init()`方法注入依赖，避免Spring循环依赖
 - 静态持有SqlExecuteEngine实例，在MVEL表达式执行时可直接调用
 
-### 2.4 SqlExecuteEngine
+### 2.4 HttpFunction
+
+**文件**: `com.etl.engine.mvel.HttpFunction`
+
+HTTP请求函数桥接类，将HTTP客户端能力暴露给MVEL表达式。
+
+**核心方法**：
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| init | `void init()` | 初始化HTTP客户端 |
+| init | `void init(HttpClientAdapter adapter)` | 使用自定义客户端适配器初始化 |
+| httpRequest | `HttpRequestBuilder httpRequest(String url)` | 创建HTTP请求构建器 |
+| http | `HttpRequestBuilder http(String url)` | httpRequest的别名 |
+| shutdown | `void shutdown()` | 关闭HTTP客户端 |
+
+**使用示例**：
+
+```java
+// MVEL表达式中的HTTP请求
+httpRequest("https://api.example.com/users")
+    .header("Authorization", "Bearer token")
+    .queryVariable("page", 1)
+    .timeout(5000)
+    .get()
+    .asJson()
+
+// POST JSON数据
+httpRequest("https://api.example.com/users")
+    .bodyJson(Map.of("name", "test", "age", 25))
+    .post()
+    .asMap()
+
+// 异步请求
+httpRequest("https://api.example.com/data")
+    .asyncGet()
+    .thenAccept(response -> {
+        // 处理响应
+    })
+```
+
+### 2.5 HttpRequestBuilder
+
+**文件**: `com.etl.engine.http.HttpRequestBuilder`
+
+HTTP请求构建器接口，提供链式API配置请求参数。
+
+**核心方法**：
+
+| 方法 | 说明 |
+|------|------|
+| header(String key, String value) | 设置请求头 |
+| headers(Map<String, String> headers) | 批量设置请求头 |
+| body(Object data) | 设置请求体（自动JSON序列化） |
+| bodyJson(Object data) | 设置JSON请求体 |
+| bodyForm(Map<String, String> formData) | 设置表单请求体 |
+| pathVariables(Map<String, Object> variables) | 设置路径参数 |
+| queryVariables(Map<String, Object> variables) | 设置查询参数 |
+| timeout(int millis) | 设置超时时间 |
+| basicAuth(String username, String password) | 设置Basic认证 |
+| bearerAuth(String token) | 设置Bearer认证 |
+| retry(int maxRetries) | 设置重试次数 |
+| interceptor(HttpInterceptor interceptor) | 添加拦截器 |
+| get() / post() / put() / delete() / patch() | 执行请求 |
+| asyncGet() / asyncPost() | 异步执行请求 |
+
+### 2.6 HttpResponse
+
+**文件**: `com.etl.engine.http.HttpResponse`
+
+HTTP响应接口，提供多种响应解析方式。
+
+**核心方法**：
+
+| 方法 | 说明 |
+|------|------|
+| statusCode() | 获取状态码 |
+| isSuccess() | 是否成功(2xx) |
+| headers() | 获取响应头 |
+| asString() | 获取原始字符串 |
+| asJson() | 解析为JsonNode |
+| asMap() | 解析为Map |
+| asXml() | 解析为XML Document |
+| asBean(Class<T> clazz) | 解析为JavaBean |
+| custom(Function<String, T> parser) | 自定义解析 |
+
+### 2.7 SqlExecuteEngine
 
 **文件**: `com.etl.engine.sql.SqlExecuteEngine`
 
@@ -635,6 +733,13 @@ spring:
 - MVEL表达式编译执行引擎
 - 三层安全防护机制（沙箱关键字过滤+超时控制+SQL只读限制）
 - 内置SQL查询函数（sql、sqlValue）
+- 内置HTTP请求函数（httpRequest、http）
+  - 链式API设计，支持多种HTTP方法
+  - 支持同步和异步请求
+  - 多种响应解析方式（JSON、XML、Map、Bean）
+  - 请求重试机制
+  - HTTP拦截器支持
+  - Bearer/Basic认证支持
 - Redis分布式会话存储+本地内存降级
 - JDK 21虚拟线程并发支持
 - ScopedValue上下文传递
@@ -648,3 +753,4 @@ spring:
 - MVEL2 2.5.2.Final
 - H2 2.2.224
 - Redis + Lettuce
+- Jackson (JSON/XML)

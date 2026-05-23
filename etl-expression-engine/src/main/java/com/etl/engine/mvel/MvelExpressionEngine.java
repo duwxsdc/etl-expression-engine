@@ -45,6 +45,8 @@ public class MvelExpressionEngine {
         this.mvelSecuritySandbox = mvelSecuritySandbox;
         this.sqlExecuteEngine = sqlExecuteEngine;
         SqlFunction.init(sqlExecuteEngine);
+        HttpFunction.init();
+        logger.info("MVEL表达式引擎初始化完成, SQL函数和HTTP函数已注册");
     }
 
     public ExecuteResult execute(String expression, EtlContext context) {
@@ -189,16 +191,42 @@ public class MvelExpressionEngine {
         try {
             parserContext.addImport("sql", SqlFunction.class.getMethod("sql", String.class));
             parserContext.addImport("sqlValue", SqlFunction.class.getMethod("sqlValue", String.class));
+            parserContext.addImport("httpRequest", HttpFunction.class.getMethod("httpRequest", String.class));
+            parserContext.addImport("http", HttpFunction.class.getMethod("http", String.class));
         } catch (NoSuchMethodException e) {
-            throw new IllegalStateException("SQL函数注册失败", e);
+            throw new IllegalStateException("函数注册失败", e);
         }
 
         Map<String, Object> contextMap = new HashMap<>(context.getAllVariables());
 
         try {
+            logger.debug("MVEL编译表达式: 长度={}, 预览={}", 
+                    expression.length(), 
+                    expression.length() > 100 ? expression.substring(0, 100) + "..." : expression);
+            
             Serializable compiled = MVEL.compileExpression(expression, parserContext);
-            return MVEL.executeExpression(compiled, contextMap);
+            
+            logger.debug("MVEL执行表达式: 编译成功, 上下文变量数={}", contextMap.size());
+            
+            Object result = MVEL.executeExpression(compiled, contextMap);
+            
+            logger.debug("MVEL执行完成: 结果类型={}, 结果={}", 
+                    result != null ? result.getClass().getName() : "null",
+                    result);
+            
+            return result;
         } catch (Exception e) {
+            logger.error("MVEL执行失败: 表达式={}, 错误类型={}, 错误信息={}", 
+                    expression.length() > 200 ? expression.substring(0, 200) + "..." : expression,
+                    e.getClass().getName(),
+                    e.getMessage());
+            
+            if (e.getCause() != null) {
+                logger.error("MVEL执行失败-根因: 类型={}, 信息={}", 
+                        e.getCause().getClass().getName(),
+                        e.getCause().getMessage());
+            }
+            
             throw new IllegalArgumentException("表达式执行错误: " + e.getMessage(), e);
         }
     }

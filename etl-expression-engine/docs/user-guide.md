@@ -485,7 +485,200 @@ total = sqlValue("SELECT count(*) FROM etl_task"); running = sqlValue("SELECT co
 | Ctrl + L | 清空控制台输出 |
 | Esc | 清空输入框 |
 
-## 8. 问题反馈
+## 8. HTTP请求功能
+
+系统支持在表达式中直接发起HTTP请求，用于调用外部API获取数据或提交数据。
+
+### 8.1 基本用法
+
+使用`http()`函数创建HTTP请求构建器，支持链式调用：
+
+```
+http('https://api.example.com/data')
+    .header('Authorization', 'Bearer token')
+    .get()
+    .body()
+    .asMap()
+```
+
+### 8.2 常用HTTP方法
+
+**GET请求**：
+```
+result = http('https://httpbin.org/get').get().body().asMap()
+```
+
+**POST请求**：
+```
+result = http('https://httpbin.org/post')
+    .bodyJson({'name': 'ETL', 'version': '1.0'})
+    .post()
+    .body()
+    .asMap()
+```
+
+**PUT请求**：
+```
+result = http('https://api.example.com/resource/1')
+    .bodyJson({'status': 'updated'})
+    .put()
+    .statusCode()
+```
+
+**DELETE请求**：
+```
+result = http('https://api.example.com/resource/1')
+    .delete()
+    .statusCode()
+```
+
+### 8.3 请求配置
+
+**添加请求头**：
+```
+http('https://api.example.com/data')
+    .header('X-API-Key', 'your-api-key')
+    .header('Accept', 'application/json')
+    .get()
+```
+
+**添加查询参数**：
+```
+http('https://api.example.com/users')
+    .queryVariable('page', 1)
+    .queryVariable('size', 20)
+    .get()
+```
+
+**设置请求体**：
+```
+http('https://api.example.com/orders')
+    .contentType('application/json')
+    .bodyJson({'orderId': 'ORD-001', 'amount': 100})
+    .post()
+```
+
+**设置认证**：
+```
+http('https://api.example.com/protected')
+    .bearerAuth('your-jwt-token')
+    .get()
+```
+
+```
+http('https://api.example.com/protected')
+    .basicAuth('username', 'password')
+    .get()
+```
+
+**设置超时**：
+```
+http('https://api.example.com/slow')
+    .timeout(30000)
+    .get()
+```
+
+**设置重试**：
+```
+http('https://api.example.com/unstable')
+    .retry(3, 1000)
+    .get()
+```
+
+### 8.4 响应处理
+
+**获取状态码**：
+```
+response = http('https://api.example.com/data').get()
+response.statusCode()
+```
+
+**获取响应头**：
+```
+response = http('https://api.example.com/data').get()
+response.headers()
+```
+
+**解析响应体**：
+- `asString()` - 获取字符串格式
+- `asMap()` - 解析为Map（适用于JSON对象）
+- `asJson()` - 解析为JsonNode
+- `asXml()` - 解析为XML文档
+
+```
+response = http('https://api.example.com/users').get()
+data = response.body().asMap()
+data.users
+```
+
+### 8.5 实际示例
+
+**调用天气API**：
+```
+weather = http('https://api.openweathermap.org/data/2.5/weather')
+    .queryVariable('q', 'Beijing')
+    .queryVariable('appid', 'your-api-key')
+    .get()
+    .body()
+    .asMap()
+    
+weather.weather[0].description
+```
+
+**提交数据到API**：
+```
+result = http('https://api.example.com/tasks')
+    .contentType('application/json')
+    .bodyJson({
+        'name': '新任务',
+        'priority': 1,
+        'status': 'PENDING'
+    })
+    .post()
+    .body()
+    .asMap()
+    
+result.taskId
+```
+
+**处理分页数据**：
+```
+allUsers = [];
+page = 1;
+while (page <= 5) {
+    resp = http('https://api.example.com/users')
+        .queryVariable('page', page)
+        .queryVariable('size', 100)
+        .get()
+        .body()
+        .asMap();
+    allUsers.addAll(resp.data);
+    page = page + 1;
+}
+allUsers.size()
+```
+
+### 8.6 注意事项
+
+1. **检查状态码**：HTTP错误状态码不会导致表达式执行失败，需要手动检查
+   ```
+   response = http('https://api.example.com/data').get()
+   response.statusCode() == 200 ? response.body().asMap() : '请求失败'
+   ```
+
+2. **超时设置**：对于响应较慢的API，建议设置合理的超时时间
+   ```
+   http('url').timeout(30000).get()
+   ```
+
+3. **重试机制**：对于不稳定的服务，使用重试机制提高成功率
+   ```
+   http('url').retry(3, 2000).get()
+   ```
+
+4. **敏感信息**：不要在表达式中硬编码API密钥或密码，可通过变量传递
+
+## 9. 问题反馈
 
 如遇到问题或有建议，请联系开发团队并提供以下信息：
 
