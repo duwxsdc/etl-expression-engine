@@ -5,6 +5,7 @@ import org.w3c.dom.Document;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public final class HttpResponseImpl implements HttpResponse {
@@ -84,6 +85,43 @@ public final class HttpResponseImpl implements HttpResponse {
     @Override
     public <T> T asBean(Class<T> clazz) {
         return body.asBean(clazz);
+    }
+    
+    @Override
+    public Object asJava(String className) {
+        return body.asJava(className);
+    }
+    
+    @Override
+    public <T> T asJava(Class<T> clazz) {
+        return body.asJava(clazz);
+    }
+    
+    @Override
+    public HttpResponse response(Consumer<HttpResponse> handler) {
+        if (handler == null) {
+            throw new IllegalArgumentException("处理器不能为null");
+        }
+        handler.accept(this);
+        return this;
+    }
+    
+    @Override
+    public <R> R response(Function<HttpResponse, R> handler) {
+        if (handler == null) {
+            throw new IllegalArgumentException("处理器不能为null");
+        }
+        return handler.apply(this);
+    }
+    
+    @Override
+    public <T> T extract(String jsonPath) {
+        return body.extract(jsonPath);
+    }
+    
+    @Override
+    public <T> T extract(String jsonPath, Class<T> type) {
+        return body.extract(jsonPath, type);
     }
     
     @Override

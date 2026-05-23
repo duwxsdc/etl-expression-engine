@@ -18,6 +18,14 @@ public sealed interface ResponseBody permits ResponseBodyImpl {
     
     <T> T asBean(Class<T> clazz);
     
+    Object asJava(String className);
+    
+    <T> T asJava(Class<T> clazz);
+    
+    <T> T extract(String jsonPath);
+    
+    <T> T extract(String jsonPath, Class<T> type);
+    
     <T> T custom(Function<String, T> parser);
     
     byte[] asBytes();
