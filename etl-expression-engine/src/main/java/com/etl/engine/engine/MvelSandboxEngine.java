@@ -4,6 +4,8 @@ import com.etl.engine.config.EngineProperties;
 import com.etl.engine.context.ContextHolder;
 import com.etl.engine.context.SessionContext;
 import com.etl.engine.model.ExpressionResult;
+import com.etl.engine.mvel.SqlFunction;
+import com.etl.engine.sql.SqlExecuteEngine;
 import org.mvel2.MVEL;
 import org.mvel2.ParserContext;
 import org.mvel2.CompileException;
@@ -19,13 +21,6 @@ import java.util.concurrent.*;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
-/**
- * MVEL安全沙箱引擎
- * 提供安全的表达式执行环境
- * 
- * @author ETL Engine
- * @version 1.0.0
- */
 @Component
 public class MvelSandboxEngine {
 
@@ -43,7 +38,7 @@ public class MvelSandboxEngine {
         "Runtime", "System", "ProcessBuilder", "Process",
         "File", "FileInputStream", "FileOutputStream", "FileReader", "FileWriter",
         "URL", "URI", "HttpURLConnection", "Socket", "ServerSocket",
-        "ClassLoader", "Class#forName", "execute", "exec",
+        "ClassLoader", "Class#forName", "exec",
         "getRuntime", "exit", "halt", "shutdown",
         "java.lang.reflect", "Method#invoke", "Constructor#newInstance",
         "Thread", "ThreadGroup", "java.util.concurrent",
@@ -59,11 +54,12 @@ public class MvelSandboxEngine {
 
     private final EngineProperties properties;
     private final ExecutorService executorService;
-    private final SqlExecutionEngine sqlExecutionEngine;
+    private final SqlExecuteEngine sqlExecuteEngine;
 
-    public MvelSandboxEngine(EngineProperties properties, SqlExecutionEngine sqlExecutionEngine) {
+    public MvelSandboxEngine(EngineProperties properties, SqlExecuteEngine sqlExecuteEngine) {
         this.properties = properties;
-        this.sqlExecutionEngine = sqlExecutionEngine;
+        this.sqlExecuteEngine = sqlExecuteEngine;
+        SqlFunction.init(sqlExecuteEngine);
         this.executorService = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "mvel-executor");
             t.setDaemon(true);
@@ -100,7 +96,7 @@ public class MvelSandboxEngine {
         try {
             return executeWithTimeout(trimmedExpression, sessionContext);
         } catch (Exception e) {
-            logger.error("表达式执行异常: sessionId={}, expression={}", 
+            logger.error("表达式执行异常: sessionId={}, expression={}",
                     sessionContext.getSessionId(), expression, e);
             return ExpressionResult.failure(
                 sessionContext.getSessionId(),
@@ -123,7 +119,7 @@ public class MvelSandboxEngine {
 
             return future.get(properties.getExpressionTimeout(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            logger.warn("表达式执行超时: sessionId={}, expression={}", 
+            logger.warn("表达式执行超时: sessionId={}, expression={}",
                     sessionContext.getSessionId(), expression);
             return ExpressionResult.failure(
                 sessionContext.getSessionId(),
@@ -133,7 +129,7 @@ public class MvelSandboxEngine {
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             String errorMsg = cause != null ? cause.getMessage() : e.getMessage();
-            logger.error("表达式执行错误: sessionId={}, error={}", 
+            logger.error("表达式执行错误: sessionId={}, error={}",
                     sessionContext.getSessionId(), errorMsg);
             return ExpressionResult.failure(
                 sessionContext.getSessionId(),
@@ -181,11 +177,11 @@ public class MvelSandboxEngine {
 
     private Object executeSingleExpression(String expression, SessionContext sessionContext) {
         Matcher assignmentMatcher = ASSIGNMENT_PATTERN.matcher(expression);
-        
+
         if (assignmentMatcher.matches()) {
             String varName = assignmentMatcher.group(1);
             String valueExpression = assignmentMatcher.group(2);
-            
+
             if (!VARIABLE_NAME_PATTERN.matcher(varName).matches()) {
                 throw new IllegalArgumentException("无效的变量名: " + varName);
             }
@@ -199,11 +195,15 @@ public class MvelSandboxEngine {
     }
 
     private Object evaluateExpression(String expression, SessionContext sessionContext) {
-        if (isSqlQuery(expression)) {
-            return executeSqlQuery(expression);
+        ParserContext parserContext = createSafeParserContext();
+
+        try {
+            parserContext.addImport("sql", SqlFunction.class.getMethod("sql", String.class));
+            parserContext.addImport("sqlValue", SqlFunction.class.getMethod("sqlValue", String.class));
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException("SQL函数注册失败", e);
         }
 
-        ParserContext parserContext = createSafeParserContext();
         Map<String, Object> context = new HashMap<>(sessionContext.getAllVariables());
 
         try {
@@ -212,24 +212,6 @@ public class MvelSandboxEngine {
         } catch (CompileException e) {
             throw new IllegalArgumentException("表达式编译错误: " + e.getMessage());
         }
-    }
-
-    private boolean isSqlQuery(String expression) {
-        String upper = expression.trim().toUpperCase();
-        return upper.startsWith("SQL:") || upper.startsWith("SELECT ");
-    }
-
-    private Object executeSqlQuery(String expression) {
-        if (!properties.isEnableSqlExecution()) {
-            throw new SecurityException("SQL执行功能已禁用");
-        }
-
-        String sql = expression.trim();
-        if (sql.toUpperCase().startsWith("SQL:")) {
-            sql = sql.substring(4).trim();
-        }
-
-        return sqlExecutionEngine.executeQuery(sql);
     }
 
     private ParserContext createSafeParserContext() {

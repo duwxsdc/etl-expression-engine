@@ -1,0 +1,101 @@
+# ======================================
+# 1. 构建工具生成的目录（Maven / Gradle）
+# ======================================
+target/
+build/
+.gradle/
+out/
+bin/
+
+# Gradle 缓存
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# Maven 本地忽略
+!.mvn/wrapper/maven-wrapper.jar
+
+# ======================================
+# 2. IDE 配置文件（IntelliJ IDEA / Eclipse）
+# ======================================
+## IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+## Eclipse
+.classpath
+.project
+.settings/
+.cproject
+
+## VS Code
+.vscode/
+*.code-workspace
+
+# ======================================
+# 3. 编译产物 & 字节码
+# ======================================
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# ======================================
+# 4. 日志文件
+# ======================================
+*.log
+*.logs
+log/
+logs/
+
+# Spring Boot / Tomcat 日志
+application.log
+catalina.out
+
+# ======================================
+# 5. 临时文件 / 系统文件
+# ======================================
+*.tmp
+*.bak
+*.swp
+*.DS_Store
+Thumbs.db
+
+# ======================================
+# 6. 配置文件（敏感信息、本地配置）
+# ======================================
+# 数据库密码、密钥、本地配置（强烈建议忽略）
+application-local.yml
+application-local.properties
+application-dev.yml
+application-dev.properties
+
+# 密钥/证书
+*.jks
+*.keystore
+*.p12
+*.key
+*.pem
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# ======================================
+# 7. 测试 & 覆盖率
+# ======================================
+*.hprof
+jacoco.exec
+coverage/
+*.test
+
+# ======================================
+# 8. 运行时文件
+# ======================================
+*.pid

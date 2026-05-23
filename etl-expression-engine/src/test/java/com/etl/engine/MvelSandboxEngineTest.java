@@ -4,7 +4,7 @@ import com.etl.engine.config.EngineProperties;
 import com.etl.engine.context.ContextHolder;
 import com.etl.engine.context.SessionContext;
 import com.etl.engine.engine.MvelSandboxEngine;
-import com.etl.engine.engine.SqlExecutionEngine;
+import com.etl.engine.sql.SqlExecuteEngine;
 import com.etl.engine.model.ExpressionResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,7 +39,7 @@ class MvelSandboxEngineTest {
                 .build();
 
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
-        SqlExecutionEngine sqlEngine = new SqlExecutionEngine(jdbcTemplate);
+        SqlExecuteEngine sqlEngine = new SqlExecuteEngine(jdbcTemplate);
         
         EngineProperties properties = new EngineProperties(5000L, 10000, true, true);
         engine = new MvelSandboxEngine(properties, sqlEngine);
@@ -186,7 +186,7 @@ class MvelSandboxEngineTest {
                 .setType(EmbeddedDatabaseType.H2)
                 .build();
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
-        SqlExecutionEngine sqlEngine = new SqlExecutionEngine(jdbcTemplate);
+        SqlExecuteEngine sqlEngine = new SqlExecuteEngine(jdbcTemplate);
         MvelSandboxEngine shortTimeoutEngine = new MvelSandboxEngine(shortTimeoutProps, sqlEngine);
         SessionContext timeoutContext = new SessionContext("TIMEOUT-TEST");
 

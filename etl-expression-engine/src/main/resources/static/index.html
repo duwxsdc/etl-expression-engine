@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ETL表达式引擎控制台</title>
+    <title>ETL Expression Engine Console</title>
     <style>
         * {
             margin: 0;
@@ -43,6 +43,7 @@
         .session-id {
             color: #4ec9b0;
             font-size: 13px;
+            cursor: pointer;
         }
 
         .status {
@@ -187,6 +188,22 @@
             background: #6e6e6e;
         }
 
+        button.danger {
+            background: #c42b1c;
+        }
+
+        button.danger:hover {
+            background: #e74c3c;
+        }
+
+        button.success {
+            background: #2e7d32;
+        }
+
+        button.success:hover {
+            background: #388e3c;
+        }
+
         .toolbar {
             display: flex;
             justify-content: space-between;
@@ -277,10 +294,121 @@
             overflow-y: auto;
         }
 
-        .separator {
-            color: #3c3c3c;
-            margin: 10px 0;
-            border-bottom: 1px dashed #3c3c3c;
+        .session-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .session-dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: #2d2d2d;
+            min-width: 320px;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .session-dropdown-content.show {
+            display: block;
+        }
+
+        .session-dropdown-header {
+            padding: 10px 15px;
+            border-bottom: 1px solid #3c3c3c;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .session-dropdown-header span {
+            color: #569cd6;
+            font-size: 13px;
+        }
+
+        .session-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .session-item {
+            padding: 8px 15px;
+            border-bottom: 1px solid #3c3c3c;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .session-item:hover {
+            background: #3c3c3c;
+        }
+
+        .session-item.active {
+            background: #0e639c;
+        }
+
+        .session-item-id {
+            color: #4ec9b0;
+            font-size: 12px;
+        }
+
+        .session-item-time {
+            color: #6e6e6e;
+            font-size: 11px;
+        }
+
+        .session-actions {
+            padding: 10px 15px;
+            border-top: 1px solid #3c3c3c;
+            display: flex;
+            gap: 10px;
+        }
+
+        .confirm-dialog {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .confirm-dialog.show {
+            display: flex;
+        }
+
+        .confirm-dialog-content {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            min-width: 350px;
+            border: 1px solid #3c3c3c;
+        }
+
+        .confirm-dialog-title {
+            color: #f14c4c;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .confirm-dialog-message {
+            color: #d4d4d4;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .confirm-dialog-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
         }
     </style>
 </head>
@@ -292,7 +420,20 @@
                 <div class="status-dot" id="statusDot"></div>
                 <span id="statusText">Connected</span>
             </div>
-            <span class="session-id" id="sessionId">Session: --</span>
+            <div class="session-dropdown">
+                <span class="session-id" id="sessionIdDisplay" onclick="toggleSessionDropdown()">Session: --</span>
+                <div class="session-dropdown-content" id="sessionDropdown">
+                    <div class="session-dropdown-header">
+                        <span>Session Management</span>
+                        <button class="close-panel" onclick="toggleSessionDropdown()">x</button>
+                    </div>
+                    <div class="session-list" id="sessionList"></div>
+                    <div class="session-actions">
+                        <button class="success" onclick="createNewSession()">New Session</button>
+                        <button class="danger" onclick="confirmDestroySession()">Destroy Current</button>
+                    </div>
+                </div>
+            </div>
             <button class="toggle-panel" onclick="toggleVariablesPanel()">Variables</button>
         </div>
     </div>
@@ -307,17 +448,18 @@
                     <button class="quick-action" onclick="insertExample('a+b')">a+b</button>
                     <button class="quick-action" onclick="insertExample('flag=true')">flag=true</button>
                     <button class="quick-action" onclick="insertExample('name="etl"')">name="etl"</button>
-                    <button class="quick-action" onclick="insertExample('a>50 ? "big" : "small"')">三元运算</button>
-                    <button class="quick-action" onclick="insertExample('SQL: SELECT 1 as test')">SQL查询</button>
+                    <button class="quick-action" onclick="insertExample('a>50 ? "big" : "small"')">Ternary</button>
+                    <button class="quick-action" onclick="insertExample('sql("SELECT 1 as test")')">SQL</button>
+                    <button class="quick-action" onclick="insertExample('sqlValue("SELECT count(*) FROM etl_config")')">SQL Value</button>
                 </div>
                 <button class="clear" onclick="clearConsole()">Clear</button>
             </div>
             <div class="input-wrapper">
                 <span class="prompt">&gt;</span>
-                <input type="text" id="expressionInput" placeholder="输入表达式，按Enter执行..." 
+                <input type="text" id="expressionInput" placeholder="Enter expression, press Enter to execute..." 
                        onkeypress="handleKeyPress(event)">
                 <div class="button-group">
-                    <button id="executeBtn">Execute</button>
+                    <button id="executeBtn" onclick="executeExpression()">Execute</button>
                 </div>
             </div>
         </div>
@@ -326,21 +468,29 @@
     <div class="variables-panel" id="variablesPanel">
         <div class="panel-header">
             <span>Session Variables</span>
-            <button class="close-panel" onclick="toggleVariablesPanel()">×</button>
+            <button class="close-panel" onclick="toggleVariablesPanel()">x</button>
         </div>
         <div id="variablesList"></div>
     </div>
 
+    <div class="confirm-dialog" id="confirmDialog">
+        <div class="confirm-dialog-content">
+            <div class="confirm-dialog-title">Confirm Destroy Session</div>
+            <div class="confirm-dialog-message" id="confirmDialogMessage">
+                Are you sure you want to destroy the current session? This action cannot be undone.
+            </div>
+            <div class="confirm-dialog-buttons">
+                <button class="clear" onclick="hideConfirmDialog()">Cancel</button>
+                <button class="danger" onclick="destroyCurrentSession()">Destroy</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // 生成全局唯一SessionId
-        let currentSessionId = localStorage.getItem('etl-session-id');
-        if (!currentSessionId) {
-            currentSessionId = 'ETL-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9).toUpperCase();
-            localStorage.setItem('etl-session-id', currentSessionId);
-        }
-        
+        let currentSessionId = localStorage.getItem('etl-session-id') || null;
+        let sessionHistory = JSON.parse(localStorage.getItem('etl-session-history') || '[]');
         let variables = {};
-        
+
         function log(message, type = 'info') {
             const output = document.getElementById('consoleOutput');
             const entry = document.createElement('div');
@@ -404,6 +554,14 @@
             panel.classList.toggle('open');
         }
 
+        function toggleSessionDropdown() {
+            const dropdown = document.getElementById('sessionDropdown');
+            dropdown.classList.toggle('show');
+            if (dropdown.classList.contains('show')) {
+                refreshSessionList();
+            }
+        }
+
         function insertExample(text) {
             document.getElementById('expressionInput').value = text;
             document.getElementById('expressionInput').focus();
@@ -443,6 +601,126 @@
             }
         }
 
+        function updateSessionDisplay() {
+            const display = document.getElementById('sessionIdDisplay');
+            if (currentSessionId) {
+                display.textContent = `Session: ${currentSessionId.substring(0, 12)}...`;
+            } else {
+                display.textContent = `Session: (click to create)`;
+            }
+        }
+
+        function addToSessionHistory(sessionId) {
+            if (!sessionId) return;
+            sessionHistory = sessionHistory.filter(s => s.id !== sessionId);
+            sessionHistory.unshift({
+                id: sessionId,
+                time: new Date().toISOString()
+            });
+            if (sessionHistory.length > 10) {
+                sessionHistory = sessionHistory.slice(0, 10);
+            }
+            localStorage.setItem('etl-session-history', JSON.stringify(sessionHistory));
+        }
+
+        function refreshSessionList() {
+            const list = document.getElementById('sessionList');
+            list.innerHTML = '';
+
+            if (sessionHistory.length === 0) {
+                list.innerHTML = '<div class="variable-item" style="color: #6e6e6e;">No session history</div>';
+                return;
+            }
+
+            for (const session of sessionHistory) {
+                const item = document.createElement('div');
+                item.className = `session-item ${session.id === currentSessionId ? 'active' : ''}`;
+                const timeStr = new Date(session.time).toLocaleTimeString('zh-CN', { hour12: false });
+                item.innerHTML = `
+                    <span class="session-item-id">${session.id}</span>
+                    <span class="session-item-time">${timeStr}</span>
+                `;
+                item.onclick = () => switchToSession(session.id);
+                list.appendChild(item);
+            }
+        }
+
+        async function switchToSession(sessionId) {
+            currentSessionId = sessionId;
+            localStorage.setItem('etl-session-id', currentSessionId);
+            variables = {};
+            updateSessionDisplay();
+            updateVariablesPanel();
+            toggleSessionDropdown();
+            log(`Switched to session: ${sessionId}`, 'system');
+        }
+
+        async function createNewSession() {
+            try {
+                const response = await fetch('/etl/expression/session/new', {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    currentSessionId = result.sessionId;
+                    localStorage.setItem('etl-session-id', currentSessionId);
+                    addToSessionHistory(currentSessionId);
+                    variables = {};
+                    updateSessionDisplay();
+                    updateVariablesPanel();
+                    toggleSessionDropdown();
+                    log(`Created new session: ${currentSessionId}`, 'system');
+                } else {
+                    log(`Failed to create session: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                log(`Request failed: ${error.message}`, 'error');
+            }
+        }
+
+        function confirmDestroySession() {
+            if (!currentSessionId) {
+                log('No active session to destroy', 'error');
+                return;
+            }
+            document.getElementById('confirmDialogMessage').textContent = 
+                `Are you sure you want to destroy session: ${currentSessionId}? This action cannot be undone.`;
+            document.getElementById('confirmDialog').classList.add('show');
+            toggleSessionDropdown();
+        }
+
+        function hideConfirmDialog() {
+            document.getElementById('confirmDialog').classList.remove('show');
+        }
+
+        async function destroyCurrentSession() {
+            hideConfirmDialog();
+            if (!currentSessionId) return;
+
+            try {
+                const response = await fetch(`/etl/expression/session/${currentSessionId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    log(`Session destroyed: ${currentSessionId}`, 'system');
+                    sessionHistory = sessionHistory.filter(s => s.id !== currentSessionId);
+                    localStorage.setItem('etl-session-history', JSON.stringify(sessionHistory));
+                    currentSessionId = null;
+                    localStorage.removeItem('etl-session-id');
+                    variables = {};
+                    updateSessionDisplay();
+                    updateVariablesPanel();
+                } else {
+                    log(`Failed to destroy session: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                log(`Request failed: ${error.message}`, 'error');
+            }
+        }
+
         async function executeExpression() {
             const input = document.getElementById('expressionInput');
             const expression = input.value.trim();
@@ -454,12 +732,16 @@
             log(`> ${expression}`, 'input');
 
             try {
+                const headers = {
+                    'Content-Type': 'text/plain'
+                };
+                if (currentSessionId) {
+                    headers['X-Session-Id'] = currentSessionId;
+                }
+
                 const response = await fetch('/etl/expression/execute', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'text/plain',
-                        'X-Session-Id': currentSessionId
-                    },
+                    headers: headers,
                     body: expression
                 });
 
@@ -468,10 +750,14 @@
                 }
 
                 const result = await response.json();
-                
-                // 更新会话ID显示
-                document.getElementById('sessionId').textContent = `Session: ${result.sessionId}`;
-                
+
+                if (result.sessionId && result.sessionId !== currentSessionId) {
+                    currentSessionId = result.sessionId;
+                    localStorage.setItem('etl-session-id', currentSessionId);
+                    addToSessionHistory(currentSessionId);
+                }
+                updateSessionDisplay();
+
                 if (result.success) {
                     if (result.finalResult !== null && result.finalResult !== '') {
                         const resultStr = typeof result.finalResult === 'object' 
@@ -483,7 +769,7 @@
                     if (result.contextVars && Object.keys(result.contextVars).length > 0) {
                         Object.assign(variables, result.contextVars);
                         updateVariablesPanel();
-                        
+
                         const varStr = Object.entries(result.contextVars)
                             .map(([k, v]) => `${k}=${formatValue(v)}`)
                             .join(', ');
@@ -495,23 +781,35 @@
             } catch (error) {
                 log(`Request failed: ${error.message}`, 'error');
             }
-            
+
             input.value = '';
         }
 
-        // 初始化
         window.onload = function() {
             log('ETL Expression Engine Console Ready', 'system');
-            log(`Session ID: ${currentSessionId}`, 'system');
-            document.getElementById('sessionId').textContent = `Session: ${currentSessionId}`;
+            if (currentSessionId) {
+                log(`Session ID: ${currentSessionId}`, 'system');
+            } else {
+                log('No active session. Execute an expression to create one, or click "New Session".', 'system');
+            }
+            updateSessionDisplay();
             updateConnectionStatus(true);
             updateVariablesPanel();
         };
 
-        // 页面卸载时保存会话ID
         window.onbeforeunload = function() {
-            localStorage.setItem('etl-session-id', currentSessionId);
+            if (currentSessionId) {
+                localStorage.setItem('etl-session-id', currentSessionId);
+            }
         };
+
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('sessionDropdown');
+            const sessionIdDisplay = document.getElementById('sessionIdDisplay');
+            if (!dropdown.contains(event.target) && event.target !== sessionIdDisplay) {
+                dropdown.classList.remove('show');
+            }
+        });
     </script>
 </body>
 </html>
