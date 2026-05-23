@@ -31,6 +31,19 @@ class MvelSecuritySandboxTest {
     }
     
     @Test
+    @DisplayName("允许.class类型引用")
+    void testAllowedClassReference() {
+        assertTrue(sandbox.isExpressionSafe("result.extract(\"age\", Integer.class)"));
+        assertTrue(sandbox.isExpressionSafe("value instanceof String.class"));
+    }
+    
+    @Test
+    @DisplayName("禁止类定义")
+    void testForbiddenClassDefinition() {
+        assertFalse(sandbox.isExpressionSafe("class MyClass { }"));
+    }
+    
+    @Test
     @DisplayName("禁止Runtime类")
     void testForbiddenRuntime() {
         assertFalse(sandbox.isExpressionSafe("Runtime.getRuntime().exec('cmd')"));

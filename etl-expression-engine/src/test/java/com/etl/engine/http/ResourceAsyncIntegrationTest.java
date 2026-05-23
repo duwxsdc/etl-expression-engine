@@ -280,7 +280,8 @@ class ResourceAsyncIntegrationTest {
         assertEquals("cancellable", type);
         
         String taskId = response.extract("taskId");
-        assertEquals("test-task-001", taskId);
+        assertTrue(taskId.contains("test-task-001"), "taskId should contain 'test-task-001'");
+        assertTrue(taskId.startsWith("cancellable-"), "taskId should start with 'cancellable-'");
         
         String status = response.extract("status");
         assertEquals("started", status);

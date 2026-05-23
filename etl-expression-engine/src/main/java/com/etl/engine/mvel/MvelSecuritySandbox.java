@@ -26,12 +26,13 @@ public class MvelSecuritySandbox {
     );
 
     private static final List<String> FORBIDDEN_KEYWORDS = List.of(
-        "import", "package", "class", "interface", "enum",
+        "import", "package", "interface", "enum",
         "try", "catch", "finally", "throw", "throws",
         "synchronized", "volatile", "transient", "native", "strictfp"
     );
     
     private static final List<String> DANGEROUS_PATTERNS = List.of(
+        "\\bclass\\s+[A-Z]",
         "while\\s*\\(\\s*true\\s*\\)",
         "for\\s*\\(\\s*;\\s*;\\s*\\)",
         "for\\s*\\(\\s*;\\s*;\\s*\\)",
