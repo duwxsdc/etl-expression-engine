@@ -33,7 +33,8 @@ class HttpRequestEngineCoreTest {
     
     @AfterAll
     static void teardown() {
-        HttpFunction.shutdown();
+        // 不在此处shutdown，避免影响异步测试
+        // HttpFunction.shutdown();
     }
     
     private HttpResponse createResponse(int statusCode, String body, Map<String, String> headers) {

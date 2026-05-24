@@ -45,6 +45,67 @@ etl:
     max-expression-length: 10000
     enable-sql-execution: true
     sql-readonly: true
+    
+    security:
+      sandbox:
+        enabled: true
+        max-expression-size: 50000
+        max-loop-count: 10
+        max-nesting-depth: 20
+        forbidden-keywords:
+          - import
+          - package
+          - interface
+          - enum
+          - try
+          - catch
+          - finally
+          - throw
+          - throws
+          - synchronized
+          - volatile
+          - transient
+          - native
+          - strictfp
+        forbidden-classes:
+          - Runtime
+          - ProcessBuilder
+          - System
+          - Class
+          - Method
+          - Field
+          - Constructor
+          - java.lang.reflect
+        dangerous-patterns:
+          - "while\\s*\\(\\s*true\\s*\\)"
+          - "for\\s*\\(.*;\\s*true\\s*;"
+          - "Runtime\\.getRuntime"
+          - "ProcessBuilder"
+          - "System\\.exit"
+          - "Class\\.forName"
+          - "getMethod"
+          - "invoke"
+    
+    token:
+      default-retries: 3
+      initial-delay-ms: 1000
+      backoff-factor: 2.0
+      refresh-buffer-ms: 60000
+      expiry-buffer-seconds: 300
+    
+    crypto:
+      aes-key-size: 256
+      rsa-key-size: 2048
+      gcm-iv-length: 12
+      gcm-tag-length: 128
+      master-key-env: ETL_CRYPTO_MASTER_KEY
+    
+    callback:
+      max-retries: 3
+      retry-interval-ms: 1000
+      max-delay-ms: 500
+      log-retention-days: 30
+      executor-pool-size: 4
 
 logging:
   level:
