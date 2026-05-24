@@ -96,7 +96,8 @@ public class MvelSecuritySandbox {
         
         logger.info("开始检查禁止类名...");
         for (String forbiddenClass : FORBIDDEN_CLASSES) {
-            if (upperExpression.contains(forbiddenClass.toUpperCase())) {
+            String regex = "\\b" + forbiddenClass + "\\b";
+            if (Pattern.compile(regex, Pattern.CASE_INSENSITIVE).matcher(expression).find()) {
                 logger.info("[拦截详情] 发现禁止类名: '{}'", forbiddenClass);
                 logger.info("[检查结果] 表达式被拒绝 - 包含禁止类名: {}", forbiddenClass);
                 return false;
@@ -283,7 +284,8 @@ public class MvelSecuritySandbox {
         }
 
         for (String forbiddenClass : FORBIDDEN_CLASSES) {
-            if (upperExpression.contains(forbiddenClass.toUpperCase())) {
+            String regex = "\\b" + forbiddenClass + "\\b";
+            if (Pattern.compile(regex, Pattern.CASE_INSENSITIVE).matcher(expression).find()) {
                 errors.add("包含禁止的类名: " + forbiddenClass);
             }
         }
