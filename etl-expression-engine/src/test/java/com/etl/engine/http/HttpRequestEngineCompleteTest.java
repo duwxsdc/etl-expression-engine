@@ -28,7 +28,9 @@ class HttpRequestEngineCompleteTest {
     
     @AfterAll
     static void teardown() {
-        HttpFunction.shutdown();
+        // 不在此处shutdown，避免影响@Nested内部类的异步测试
+        // HttpFunction.shutdown();
+        HttpRequestBuilderImpl.setClientAdapter(null);
     }
     
     private HttpResponse createMockResponse(int statusCode, String body, Map<String, String> headers) {

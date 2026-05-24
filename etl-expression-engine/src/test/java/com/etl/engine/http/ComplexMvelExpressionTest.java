@@ -42,21 +42,18 @@ class ComplexMvelExpressionTest {
     @DisplayName("复杂嵌套逻辑 - 数据分类聚合")
     void testComplexNestedLogic_DataAggregation() {
         String expression = """
-            import java.util.ArrayList;
-            import java.util.HashMap;
-            
-            data = new ArrayList();
+            data = new java.util.ArrayList();
             for (i : {0..9}) {
-                item = new HashMap();
+                item = new java.util.HashMap();
                 item.put('id', i);
                 item.put('value', i * i);
                 item.put('category', i % 3);
                 data.add(item);
             }
             
-            categories = new HashMap();
+            categories = new java.util.HashMap();
             for (i : {0..2}) {
-                categories.put(i, new ArrayList());
+                categories.put(i, new java.util.ArrayList());
             }
             
             for (item : data) {
@@ -65,7 +62,7 @@ class ComplexMvelExpressionTest {
                 list.add(item);
             }
             
-            stats = new HashMap();
+            stats = new java.util.HashMap();
             for (entry : categories.entrySet()) {
                 sum = 0;
                 count = 0;
@@ -135,9 +132,7 @@ class ComplexMvelExpressionTest {
     @DisplayName("HTTP调用 - POST JSON数据")
     void testHttpCall_PostJson() {
         String expression = """
-            import java.util.HashMap;
-            
-            payload = new HashMap();
+            payload = new java.util.HashMap();
             payload.put('name', 'ETL-Engine');
             payload.put('type', 'Integration-Test');
             payload.put('timestamp', System.currentTimeMillis());
@@ -174,9 +169,6 @@ class ComplexMvelExpressionTest {
     @DisplayName("复杂嵌套逻辑 + HTTP调用 - 数据处理管道")
     void testComplexExpression_DataPipeline() {
         String expression = """
-            import java.util.ArrayList;
-            import java.util.HashMap;
-            
             records = [
                 {'id': 1, 'name': 'Alice', 'score': 85, 'active': true},
                 {'id': 2, 'name': 'Bob', 'score': 92, 'active': true},
@@ -185,14 +177,14 @@ class ComplexMvelExpressionTest {
                 {'id': 5, 'name': 'Eve', 'score': 95, 'active': true}
             ];
             
-            activeRecords = new ArrayList();
+            activeRecords = new java.util.ArrayList();
             for (r : records) {
                 if (r.active == true) {
                     activeRecords.add(r);
                 }
             }
             
-            highScoreRecords = new ArrayList();
+            highScoreRecords = new java.util.ArrayList();
             for (r : activeRecords) {
                 if (r.score >= 85) {
                     highScoreRecords.add(r);
@@ -206,7 +198,7 @@ class ComplexMvelExpressionTest {
             
             avgScore = highScoreRecords.size() > 0 ? totalScore / highScoreRecords.size() : 0;
             
-            result = new HashMap();
+            result = new java.util.HashMap();
             result.put('totalRecords', records.size());
             result.put('activeCount', activeRecords.size());
             result.put('highScoreCount', highScoreRecords.size());
@@ -239,40 +231,15 @@ class ComplexMvelExpressionTest {
             async2 = http('https://httpbin.org/get').queryVariable('req', '2').asyncGet();
             async3 = http('https://httpbin.org/get').queryVariable('req', '3').asyncGet();
             
-            responses = new java.util.ArrayList();
-            
-            try {
-                r1 = async1.get(10000);
-                responses.add({'req': 1, 'status': r1.statusCode()});
-            } catch (e) {
-                responses.add({'req': 1, 'error': e.message});
-            }
-            
-            try {
-                r2 = async2.get(10000);
-                responses.add({'req': 2, 'status': r2.statusCode()});
-            } catch (e) {
-                responses.add({'req': 2, 'error': e.message});
-            }
-            
-            try {
-                r3 = async3.get(10000);
-                responses.add({'req': 3, 'status': r3.statusCode()});
-            } catch (e) {
-                responses.add({'req': 3, 'error': e.message});
-            }
-            
-            successCount = 0;
-            for (r : responses) {
-                if (r.status == 200) {
-                    successCount = successCount + 1;
-                }
-            }
+            r1 = async1.get(10000);
+            r2 = async2.get(10000);
+            r3 = async3.get(10000);
             
             {
                 'totalRequests': 3,
-                'successCount': successCount,
-                'responses': responses
+                'status1': r1.statusCode(),
+                'status2': r2.statusCode(),
+                'status3': r3.statusCode()
             }
             """;
 
@@ -284,7 +251,9 @@ class ComplexMvelExpressionTest {
         Map<String, Object> summary = (Map<String, Object>) result.finalResult();
         
         assertEquals(3, summary.get("totalRequests"));
-        assertTrue((Integer) summary.get("successCount") >= 2, "至少2个请求应成功");
+        assertEquals(200, summary.get("status1"));
+        assertEquals(200, summary.get("status2"));
+        assertEquals(200, summary.get("status3"));
         
         System.out.println("异步HTTP请求结果: " + summary);
     }
@@ -342,21 +311,18 @@ class ComplexMvelExpressionTest {
     @DisplayName("条件逻辑与字符串处理组合")
     void testConditionalLogic_WithStringProcessing() {
         String expression = """
-            import java.util.HashMap;
-            import java.util.ArrayList;
-            
             items = ['apple', 'BANANA', 'Cherry', 'DATE', 'elderberry'];
             
-            processed = new ArrayList();
-            shortNames = new ArrayList();
-            longNames = new ArrayList();
+            processed = new java.util.ArrayList();
+            shortNames = new java.util.ArrayList();
+            longNames = new java.util.ArrayList();
             
             for (item : items) {
                 lower = item.toLowerCase();
                 upper = item.toUpperCase();
                 length = item.length();
                 
-                processedItem = new HashMap();
+                processedItem = new java.util.HashMap();
                 processedItem.put('original', item);
                 processedItem.put('lower', lower);
                 processedItem.put('upper', upper);
@@ -372,7 +338,7 @@ class ComplexMvelExpressionTest {
                 }
             }
             
-            result = new HashMap();
+            result = new java.util.HashMap();
             result.put('total', items.size());
             result.put('processed', processed);
             result.put('shortNames', shortNames);

@@ -66,53 +66,71 @@ public class MvelSecuritySandbox {
     }
 
     public boolean isExpressionSafe(String expression) {
+        logger.info("=== 开始安全沙箱检查 ===");
+        logger.info("表达式长度: {} 字符", expression != null ? expression.length() : 0);
+        
         if (expression == null || expression.trim().isEmpty()) {
+            logger.info("[检查结果] 表达式为空，拒绝执行");
             return false;
         }
         
         if (expression.length() > MAX_EXPRESSION_SIZE) {
-            logger.warn("表达式长度超过限制: {} > {}", expression.length(), MAX_EXPRESSION_SIZE);
+            logger.warn("[检查结果] 表达式长度超过限制: {} > {}", expression.length(), MAX_EXPRESSION_SIZE);
             return false;
         }
 
         String upperExpression = expression.toUpperCase().trim();
+        logger.info("开始检查禁止关键字...");
 
         for (String keyword : FORBIDDEN_KEYWORDS) {
             if (upperExpression.contains(keyword.toUpperCase())) {
                 String regex = "\\b" + keyword.toUpperCase() + "\\b";
                 if (Pattern.compile(regex).matcher(upperExpression).find()) {
-                    logger.warn("表达式包含禁止的关键字: {}", keyword);
+                    logger.info("[拦截详情] 发现禁止关键字: '{}'", keyword);
+                    logger.info("[拦截详情] 关键字 '{}' 在表达式中的位置已匹配正则: {}", keyword, regex);
+                    logger.info("[检查结果] 表达式被拒绝 - 包含禁止关键字: {}", keyword);
                     return false;
                 }
             }
         }
-
+        
+        logger.info("开始检查禁止类名...");
         for (String forbiddenClass : FORBIDDEN_CLASSES) {
             if (upperExpression.contains(forbiddenClass.toUpperCase())) {
-                logger.warn("表达式包含禁止的类名: {}", forbiddenClass);
+                logger.info("[拦截详情] 发现禁止类名: '{}'", forbiddenClass);
+                logger.info("[检查结果] 表达式被拒绝 - 包含禁止类名: {}", forbiddenClass);
                 return false;
             }
         }
         
+        logger.info("开始检查危险模式...");
         for (String pattern : DANGEROUS_PATTERNS) {
             if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(expression).find()) {
-                logger.warn("表达式包含危险模式: {}", pattern);
+                logger.info("[拦截详情] 发现危险模式: '{}'", pattern);
+                logger.info("[检查结果] 表达式被拒绝 - 包含危险模式");
                 return false;
             }
         }
         
+        logger.info("开始检查循环复杂度...");
         if (!checkLoopComplexity(expression)) {
+            logger.info("[检查结果] 表达式被拒绝 - 循环复杂度过高");
             return false;
         }
         
+        logger.info("开始检查嵌套深度...");
         if (!checkNestingDepth(expression)) {
+            logger.info("[检查结果] 表达式被拒绝 - 嵌套深度过高");
             return false;
         }
         
+        logger.info("开始检查资源使用...");
         if (!checkResourceUsage(expression)) {
+            logger.info("[检查结果] 表达式被拒绝 - 资源使用不当");
             return false;
         }
 
+        logger.info("[检查结果] 表达式安全检查通过 ✅");
         return true;
     }
     
