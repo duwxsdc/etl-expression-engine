@@ -33,6 +33,11 @@ class HttpRequestEngineCompleteTest {
         HttpRequestBuilderImpl.setClientAdapter(null);
     }
     
+    @AfterEach
+    void resetMock() {
+        reset(mockAdapter);
+    }
+    
     private HttpResponse createMockResponse(int statusCode, String body, Map<String, String> headers) {
         return new HttpResponseImpl(statusCode, "", headers, body.getBytes(), "application/json");
     }

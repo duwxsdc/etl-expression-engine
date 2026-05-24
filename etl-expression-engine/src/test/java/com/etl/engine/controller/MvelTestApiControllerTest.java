@@ -205,7 +205,7 @@ class MvelTestApiControllerTest {
     @DisplayName("API8 GET请求 - 超时测试")
     void testApi8Get_Timeout() throws Exception {
         MvcResult result = mockMvc.perform(get("/etl/expression/test/api8/timeout")
-                        .param("delay", "100"))
+                        .param("delayMs", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("success"))
                 .andReturn();
@@ -213,7 +213,7 @@ class MvelTestApiControllerTest {
         String responseBody = result.getResponse().getContentAsString();
         Map<String, Object> response = JSON_MAPPER.readValue(responseBody, Map.class);
         
-        assertTrue((Long) response.get("actualDelay") >= 100);
+        assertTrue((Integer) response.get("actualDelayMs") >= 100);
         System.out.println("API8超时测试通过: " + response);
     }
 

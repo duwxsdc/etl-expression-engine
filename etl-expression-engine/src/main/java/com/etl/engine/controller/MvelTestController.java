@@ -34,12 +34,15 @@ public class MvelTestController {
     @PostMapping("/api1")
     public ResponseEntity<Map<String, Object>> testApi1Post(
             @RequestBody(required = false) Map<String, Object> body,
+            @RequestParam(required = false) String param,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("method", "POST");
         result.put("endpoint", "/etl/expression/test/api1");
         result.put("body", body);
+        result.put("receivedData", body);
+        result.put("param", param);
         result.put("authenticated", auth != null && auth.startsWith("Bearer "));
         result.put("timestamp", System.currentTimeMillis());
         result.put("status", "success");
@@ -54,11 +57,21 @@ public class MvelTestController {
             @RequestParam(required = false) String sort,
             @RequestParam(required = false, defaultValue = "10") Integer pageSize) {
         
+        Map<String, Object> pathVars = new LinkedHashMap<>();
+        pathVars.put("category", category);
+        pathVars.put("id", id);
+        
+        Map<String, Object> queryParams = new LinkedHashMap<>();
+        queryParams.put("sort", sort);
+        queryParams.put("pageSize", pageSize);
+        
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("method", "GET");
         result.put("endpoint", "/etl/expression/test/api2/{category}/{id}");
-        result.put("pathVariables", Map.of("category", category, "id", id));
-        result.put("queryParams", Map.of("sort", sort, "pageSize", pageSize));
+        result.put("category", category);
+        result.put("id", id);
+        result.put("pathVariables", pathVars);
+        result.put("queryParams", queryParams);
         result.put("timestamp", System.currentTimeMillis());
         result.put("status", "success");
         
@@ -75,6 +88,7 @@ public class MvelTestController {
         result.put("method", "POST");
         result.put("endpoint", "/etl/expression/test/api3");
         result.put("receivedData", data);
+        result.put("processed", true);
         result.put("headers", Map.of(
             "X-Request-Id", requestId != null ? requestId : "not-provided",
             "X-Api-Key", apiKey != null ? "***" + apiKey.substring(Math.max(0, apiKey.length() - 4)) : "not-provided"
@@ -130,10 +144,13 @@ public class MvelTestController {
     @GetMapping("/api6/search")
     public ResponseEntity<Map<String, Object>> testApi6Search(
             @RequestParam(required = false) String query,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "20") Integer size,
             @RequestParam(required = false) String[] fields,
             @RequestParam(required = false, defaultValue = "false") Boolean includeInactive) {
+        
+        String actualQuery = keyword != null ? keyword : query;
         
         List<Map<String, Object>> mockResults = new ArrayList<>();
         for (int i = 1; i <= Math.min(size, 5); i++) {
@@ -147,7 +164,8 @@ public class MvelTestController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("method", "GET");
         result.put("endpoint", "/etl/expression/test/api6/search");
-        result.put("query", query);
+        result.put("query", actualQuery);
+        result.put("keyword", actualQuery);
         result.put("pagination", Map.of("page", page, "size", size, "total", 100));
         result.put("fields", fields != null ? Arrays.asList(fields) : Collections.emptyList());
         result.put("includeInactive", includeInactive);
@@ -182,6 +200,7 @@ public class MvelTestController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("method", "POST");
         result.put("endpoint", "/etl/expression/test/api7/batch");
+        result.put("batchId", "batch-" + System.currentTimeMillis());
         result.put("inputCount", items.size());
         result.put("processedCount", processedItems.size());
         result.put("errorCount", errors.size());

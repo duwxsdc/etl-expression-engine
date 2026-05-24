@@ -33,7 +33,8 @@ public final class HttpRequestBuilderImpl implements HttpRequestBuilder {
     private String acceptType;
     
     private static volatile HttpClientAdapter clientAdapter;
-    private static final ExecutorService asyncExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private static volatile ExecutorService asyncExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private static volatile boolean isShutdown = false;
     
     public HttpRequestBuilderImpl(String baseUrl) {
         this.baseUrl = baseUrl != null ? baseUrl : "";
@@ -402,6 +403,14 @@ public final class HttpRequestBuilderImpl implements HttpRequestBuilder {
     }
     
     private AsyncHttpRequest executeAsync(String method) {
+        if (isShutdown || asyncExecutor.isShutdown()) {
+            synchronized (HttpRequestBuilderImpl.class) {
+                if (isShutdown || asyncExecutor.isShutdown()) {
+                    asyncExecutor = Executors.newVirtualThreadPerTaskExecutor();
+                    isShutdown = false;
+                }
+            }
+        }
         CompletableFuture<HttpResponse> future = CompletableFuture.supplyAsync(
                 () -> executeWithRetry(method), asyncExecutor
         );
@@ -409,9 +418,17 @@ public final class HttpRequestBuilderImpl implements HttpRequestBuilder {
     }
     
     public static void shutdown() {
+        isShutdown = true;
         asyncExecutor.shutdown();
         if (clientAdapter != null) {
             clientAdapter.shutdown();
+        }
+    }
+    
+    public static void reset() {
+        isShutdown = false;
+        if (asyncExecutor.isShutdown()) {
+            asyncExecutor = Executors.newVirtualThreadPerTaskExecutor();
         }
     }
 }
