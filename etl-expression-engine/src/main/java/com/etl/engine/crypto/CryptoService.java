@@ -28,6 +28,7 @@ public class CryptoService {
     
     private final Map<String, KeyInfo> keyStore = new ConcurrentHashMap<>();
     private final Map<String, KeyRotationPolicy> rotationPolicies = new ConcurrentHashMap<>();
+    private final Map<String, String> keyContextMap = new ConcurrentHashMap<>();
     private final SecureRandom secureRandom;
     
     public CryptoService() {
@@ -47,6 +48,8 @@ public class CryptoService {
             byte[] encodedKey = secretKey.getEncoded();
             String encryptedKey = encryptKeyStorage(encodedKey, keyId);
             Arrays.fill(encodedKey, (byte) 0);
+            
+            keyContextMap.put(keyId, keyId);
             
             KeyInfo keyInfo = new KeyInfo(
                     keyId,
@@ -85,6 +88,8 @@ public class CryptoService {
             String publicKeyBase64 = Base64.getEncoder().encodeToString(encodedPublicKey);
             
             Arrays.fill(encodedPrivateKey, (byte) 0);
+            
+            keyContextMap.put(keyId, keyId + "_private");
             
             KeyInfo keyInfo = new KeyInfo(
                     keyId,
@@ -204,7 +209,8 @@ public class CryptoService {
         }
         
         try {
-            byte[] privateKeyBytes = decryptKeyStorage(keyInfo.getEncryptedKey());
+            String context = keyContextMap.getOrDefault(keyId, keyId + "_private");
+            byte[] privateKeyBytes = decryptKeyStorage(keyInfo.getEncryptedKey(), context);
             PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
             PrivateKey privateKey = keyFactory.generatePrivate(keySpec);
@@ -273,6 +279,7 @@ public class CryptoService {
             logger.info("密钥已删除: keyId={}", keyId);
         }
         rotationPolicies.remove(keyId);
+        keyContextMap.remove(keyId);
     }
     
     public boolean hasKey(String keyId) {
@@ -381,7 +388,8 @@ public class CryptoService {
     }
     
     private SecretKey getAesSecretKey(KeyInfo keyInfo) {
-        byte[] keyBytes = decryptKeyStorage(keyInfo.getEncryptedKey());
+        String context = keyContextMap.getOrDefault(keyInfo.getKeyId(), keyInfo.getKeyId());
+        byte[] keyBytes = decryptKeyStorage(keyInfo.getEncryptedKey(), context);
         try {
             return new SecretKeySpec(keyBytes, "AES");
         } finally {
@@ -416,7 +424,7 @@ public class CryptoService {
         }
     }
     
-    private byte[] decryptKeyStorage(String encryptedKey) {
+    private byte[] decryptKeyStorage(String encryptedKey, String context) {
         try {
             byte[] combined = Base64.getDecoder().decode(encryptedKey);
             
@@ -425,7 +433,6 @@ public class CryptoService {
             System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH);
             System.arraycopy(combined, GCM_IV_LENGTH, encrypted, 0, encrypted.length);
             
-            String context = encryptedKey.substring(0, Math.min(encryptedKey.length(), 32));
             byte[] storageKey = deriveStorageKey(context);
             
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");

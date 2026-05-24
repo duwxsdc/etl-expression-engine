@@ -15,7 +15,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -33,7 +33,7 @@ public class TokenManager {
     
     private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    private final ReentrantLock lock = new ReentrantLock();
     
     private final Map<String, TokenInfo> tokenCache = new ConcurrentHashMap<>();
     private final Map<String, TokenConfig> tokenConfigs = new ConcurrentHashMap<>();
@@ -71,34 +71,26 @@ public class TokenManager {
     }
     
     public String getToken(String tokenId, boolean autoRefresh) {
-        lock.readLock().lock();
-        try {
-            TokenInfo info = tokenCache.get(tokenId);
-            
-            if (info == null || info.isExpired()) {
-                lock.readLock().unlock();
-                lock.writeLock().lock();
-                try {
-                    info = tokenCache.get(tokenId);
-                    if (info == null || info.isExpired()) {
-                        info = fetchTokenWithRetry(tokenId);
-                        tokenCache.put(tokenId, info);
-                    }
-                    lock.readLock().lock();
-                } finally {
-                    lock.writeLock().unlock();
+        TokenInfo info = tokenCache.get(tokenId);
+        
+        if (info == null || info.isExpired()) {
+            lock.lock();
+            try {
+                info = tokenCache.get(tokenId);
+                if (info == null || info.isExpired()) {
+                    info = fetchTokenWithRetry(tokenId);
+                    tokenCache.put(tokenId, info);
                 }
+            } finally {
+                lock.unlock();
             }
-            
-            if (autoRefresh && info.needsRefresh()) {
-                scheduleRefresh(tokenId);
-            }
-            
-            return info.getToken();
-            
-        } finally {
-            lock.readLock().unlock();
         }
+        
+        if (autoRefresh && info.needsRefresh()) {
+            scheduleRefresh(tokenId);
+        }
+        
+        return info.getToken();
     }
     
     public Optional<TokenInfo> getTokenInfo(String tokenId) {
@@ -106,7 +98,7 @@ public class TokenManager {
     }
     
     public void refreshToken(String tokenId) {
-        lock.writeLock().lock();
+        lock.lock();
         try {
             TokenInfo info = fetchTokenWithRetry(tokenId);
             tokenCache.put(tokenId, info);
@@ -115,12 +107,12 @@ public class TokenManager {
             logger.error("令牌刷新失败: id={}, error={}", tokenId, e.getMessage());
             throw e;
         } finally {
-            lock.writeLock().unlock();
+            lock.unlock();
         }
     }
     
     public void invalidateToken(String tokenId) {
-        lock.writeLock().lock();
+        lock.lock();
         try {
             TokenInfo removed = tokenCache.remove(tokenId);
             if (removed != null) {
@@ -128,18 +120,18 @@ public class TokenManager {
                 logger.info("令牌已失效: id={}", tokenId);
             }
         } finally {
-            lock.writeLock().unlock();
+            lock.unlock();
         }
     }
     
     public void invalidateAllTokens() {
-        lock.writeLock().lock();
+        lock.lock();
         try {
             tokenCache.forEach((id, info) -> clearTokenFromMemory(info));
             tokenCache.clear();
             logger.info("所有令牌已失效");
         } finally {
-            lock.writeLock().unlock();
+            lock.unlock();
         }
     }
     
