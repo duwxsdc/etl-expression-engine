@@ -1,57 +1,86 @@
+# ============================================================
+# ETL 表达式引擎配置文件
+# ============================================================
+# 本配置文件包含ETL表达式引擎的所有配置项
+# 包括服务基础配置、安全配置、回调配置、RestClient配置等
+# ============================================================
+
+# ------------------------------------------------------------
+# 服务基础配置
+# ------------------------------------------------------------
 server:
-  port: 8080
+  port: 8080  # 服务监听端口，默认8080
   
 spring:
   application:
-    name: etl-expression-engine
+    name: etl-expression-engine  # 应用名称
   
+  # ----------------------------------------------------------
+  # 数据源配置 (H2内存数据库)
+  # ----------------------------------------------------------
   datasource:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password: 
   
+  # H2数据库控制台配置
   h2:
     console:
       enabled: true
       path: /h2-console
   
+  # SQL初始化配置
   sql:
     init:
       mode: always
       data-locations: classpath:data.sql
   
+  # ----------------------------------------------------------
+  # Redis配置 (用于上下文共享和缓存)
+  # ----------------------------------------------------------
   data:
     redis:
-      host: 47.97.124.176
-      port: 6379
-      database: 0
-      timeout: 20000
-      password: ${REDIS_PASSWORD:redis2026!}
+      host: 47.97.124.176  # Redis服务器地址
+      port: 6379           # Redis端口
+      database: 0          # 数据库索引
+      timeout: 20000       # 连接超时时间(ms)
+      password: ${REDIS_PASSWORD:redis2026!}  # 密码，支持环境变量
       lettuce:
         pool:
-          max-active: 8
-          max-idle: 8
-          min-idle: 0
-          max-wait: 10000
+          max-active: 8    # 最大活跃连接数
+          max-idle: 8      # 最大空闲连接数
+          min-idle: 0      # 最小空闲连接数
+          max-wait: 10000  # 获取连接最大等待时间(ms)
   
+  # ----------------------------------------------------------
+  # 虚拟线程配置 (JDK 21特性)
+  # ----------------------------------------------------------
   threads:
     virtual:
-      enabled: true
+      enabled: true  # 启用虚拟线程支持
 
+# ------------------------------------------------------------
+# ETL引擎配置
+# ------------------------------------------------------------
 etl:
   engine:
-    expression-timeout: 5000
-    max-expression-length: 10000
-    enable-sql-execution: true
-    sql-readonly: true
+    # 表达式执行配置
+    expression-timeout: 60000     # 表达式执行超时时间(ms)
+    max-expression-length: 10000  # 表达式最大长度
+    enable-sql-execution: true    # 启用SQL执行功能
+    sql-readonly: true            # SQL只读模式
     
+    # ----------------------------------------------------------
+    # 安全沙箱配置
+    # ----------------------------------------------------------
     security:
       sandbox:
-        enabled: true
-        max-expression-size: 50000
-        max-loop-count: 10
-        max-nesting-depth: 20
+        enabled: true              # 启用安全沙箱
+        max-expression-size: 50000 # 表达式最大字节数
+        max-loop-count: 10         # 最大循环次数
+        max-nesting-depth: 20      # 最大嵌套深度
+        # 禁止的关键字
         forbidden-keywords:
           - import
           - package
@@ -67,6 +96,7 @@ etl:
           - transient
           - native
           - strictfp
+        # 禁止的类
         forbidden-classes:
           - Runtime
           - ProcessBuilder
@@ -76,6 +106,7 @@ etl:
           - Field
           - Constructor
           - java.lang.reflect
+        # 危险模式正则
         dangerous-patterns:
           - "while\\s*\\(\\s*true\\s*\\)"
           - "for\\s*\\(.*;\\s*true\\s*;"
@@ -86,30 +117,98 @@ etl:
           - "getMethod"
           - "invoke"
     
+    # ----------------------------------------------------------
+    # Token管理配置
+    # ----------------------------------------------------------
     token:
-      default-retries: 3
-      initial-delay-ms: 1000
-      backoff-factor: 2.0
-      refresh-buffer-ms: 60000
-      expiry-buffer-seconds: 300
+      default-retries: 3        # 默认重试次数
+      initial-delay-ms: 1000    # 初始延迟(ms)
+      backoff-factor: 2.0       # 退避因子
+      refresh-buffer-ms: 60000  # 刷新缓冲时间(ms)
+      expiry-buffer-seconds: 300  # 过期缓冲时间(s)
     
+    # ----------------------------------------------------------
+    # 加密服务配置
+    # ----------------------------------------------------------
     crypto:
-      aes-key-size: 256
-      rsa-key-size: 2048
-      gcm-iv-length: 12
-      gcm-tag-length: 128
-      master-key-env: ETL_CRYPTO_MASTER_KEY
+      aes-key-size: 256       # AES密钥长度
+      rsa-key-size: 2048      # RSA密钥长度
+      gcm-iv-length: 12       # GCM模式IV长度
+      gcm-tag-length: 128     # GCM认证标签长度
+      master-key-env: ETL_CRYPTO_MASTER_KEY  # 主密钥环境变量名
     
+    # ----------------------------------------------------------
+    # 回调管理配置
+    # ----------------------------------------------------------
     callback:
-      max-retries: 3
-      retry-interval-ms: 1000
-      max-delay-ms: 500
-      log-retention-days: 30
-      executor-pool-size: 4
+      max-retries: 3          # 最大重试次数
+      retry-interval-ms: 1000 # 重试间隔(ms)
+      max-delay-ms: 500       # 最大延迟(ms)
+      log-retention-days: 30  # 日志保留天数
+      executor-pool-size: 4   # 执行器线程池大小
+    
+    # ----------------------------------------------------------
+    # 节点配置
+    # ----------------------------------------------------------
+    node:
+      ip: ""  # 手动指定节点IP，为空则自动检测
+    
+    # ----------------------------------------------------------
+    # 回调REST接口配置
+    # ----------------------------------------------------------
+    callback-rest:
+      public-path: /api/public/callback    # 公共回调接口路径
+      internal-path: /api/internal/callback  # 内部回调接口路径
+      default-timeout-ms: 30000            # 默认超时时间(ms)
+      max-pending-events: 10000            # 最大等待事件数
+    
+    # ----------------------------------------------------------
+    # RestClient扩展配置
+    # ----------------------------------------------------------
+    rest-client:
+      # 自动Token注入配置
+      auto-token-enabled: false       # 是否启用自动Token注入
+      auto-token-header: Authorization  # Token请求头名称
+      auto-token-prefix: "Bearer "      # Token前缀
+      auto-token-value: ""              # Token固定值
+      auto-token-from-env: false        # 是否从环境变量读取
+      auto-token-env-name: ETL_API_TOKEN  # 环境变量名
+      
+      # 超时配置
+      default-timeout: 30s   # 默认请求超时
+      connect-timeout: 10s   # 连接超时
+      read-timeout: 60s      # 读取超时
+      
+      # 重试配置
+      max-retries: 0            # 最大重试次数
+      retry-delay-ms: 1000      # 重试延迟(ms)
+      retry-backoff-factor: 2.0 # 重试退避因子
+      
+      # 日志配置
+      log-request-enabled: true   # 记录请求日志
+      log-response-enabled: true  # 记录响应日志
+      log-headers-enabled: false  # 记录请求头
+      max-log-body-length: 1000   # 日志最大Body长度
+      
+      # 默认请求头
+      default-headers:
+        X-App-Name: ETL-Engine
+        X-App-Version: 1.0.0
+      
+      # 需要自动注入Token的HTTP方法
+      methods-require-token:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
 
+# ------------------------------------------------------------
+# 日志配置
+# ------------------------------------------------------------
 logging:
   level:
-    root: INFO
-    com.etl.engine: DEBUG
+    root: INFO              # 根日志级别
+    com.etl.engine: DEBUG   # ETL引擎日志级别
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

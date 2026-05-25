@@ -4,6 +4,8 @@ import com.etl.engine.config.EngineProperties;
 import com.etl.engine.context.EtlContext;
 import com.etl.engine.context.EtlContextScope;
 import com.etl.engine.model.ExecuteResult;
+import com.etl.engine.rest.MvelRestClient;
+import com.etl.engine.rest.MvelRestClientBuilder;
 import com.etl.engine.sql.SqlExecuteEngine;
 import org.mvel2.MVEL;
 import org.mvel2.ParserContext;
@@ -193,6 +195,17 @@ public class MvelExpressionEngine {
             parserContext.addImport("sqlValue", SqlFunction.class.getMethod("sqlValue", String.class));
             parserContext.addImport("httpRequest", HttpFunction.class.getMethod("httpRequest", String.class));
             parserContext.addImport("http", HttpFunction.class.getMethod("http", String.class));
+
+            parserContext.addImport("RestClient", MvelRestClient.class);
+            parserContext.addInput("RestClient", MvelRestClient.class);
+
+            parserContext.addImport("MvelRestClientBuilder", MvelRestClientBuilder.class);
+            parserContext.addImport("AsyncResult", MvelRestClientBuilder.AsyncResult.class);
+
+            parserContext.addImport("restGet", MvelRestClient.class.getMethod("get", String.class));
+            parserContext.addImport("restPost", MvelRestClient.class.getMethod("post", String.class));
+            parserContext.addImport("restPut", MvelRestClient.class.getMethod("put", String.class));
+            parserContext.addImport("restDelete", MvelRestClient.class.getMethod("delete", String.class));
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException("函数注册失败", e);
         }

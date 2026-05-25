@@ -15,19 +15,63 @@ import java.io.ByteArrayInputStream;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * HTTP响应体实现类，提供多种格式的响应体解析功能。
+ * <p>
+ * 该类实现了{@link ResponseBody}接口，支持将响应体解析为字符串、JSON、XML、Map、
+ * Java Bean等多种格式。内部使用Jackson进行JSON解析，使用JDK内置解析器进行XML解析。
+ * 响应体字符串采用延迟缓存机制，避免重复解析。
+ * </p>
+ *
+ * @author ETL Engine
+ * @version 1.0
+ * @since 1.0
+ */
 public final class ResponseBodyImpl implements ResponseBody {
     
     private static final Logger logger = LoggerFactory.getLogger(ResponseBodyImpl.class);
     
+    /**
+     * Jackson JSON对象映射器
+     */
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+    
+    /**
+     * Jackson XML对象映射器
+     */
     private static final XmlMapper XML_MAPPER = new XmlMapper();
+    
+    /**
+     * XML文档构建器工厂
+     */
     private static final DocumentBuilderFactory DOC_FACTORY = DocumentBuilderFactory.newInstance();
     
+    /**
+     * 响应体原始字节数组
+     */
     private final byte[] bytes;
+    
+    /**
+     * 响应体的Content-Type
+     */
     private final String contentType;
+    
+    /**
+     * 延迟缓存的响应体字符串
+     */
     private volatile String cachedString;
+    
+    /**
+     * 线程安全的响应体字符串缓存（构造时即初始化）
+     */
     private final String cachedStringSafe;
     
+    /**
+     * 构造响应体实现实例。
+     *
+     * @param bytes 响应体原始字节数组
+     * @param contentType 响应体的Content-Type
+     */
     ResponseBodyImpl(byte[] bytes, String contentType) {
         this.bytes = bytes;
         this.contentType = contentType;
@@ -36,6 +80,14 @@ public final class ResponseBodyImpl implements ResponseBody {
                 : "";
     }
     
+    /**
+     * 将响应体解析为字符串。
+     * <p>
+     * 使用延迟缓存机制，首次调用时进行解析，后续直接返回缓存结果。
+     * </p>
+     *
+     * @return 响应体字符串
+     */
     @Override
     public String asString() {
         String result = cachedString;
@@ -46,6 +98,12 @@ public final class ResponseBodyImpl implements ResponseBody {
         return result;
     }
     
+    /**
+     * 将响应体解析为JSON节点。
+     *
+     * @return JSON节点对象
+     * @throws HttpParseException 当JSON解析失败时抛出
+     */
     @Override
     public JsonNode asJson() {
         try {
@@ -56,6 +114,12 @@ public final class ResponseBodyImpl implements ResponseBody {
         }
     }
     
+    /**
+     * 将响应体解析为Map对象。
+     *
+     * @return Map对象，键为String类型，值为Object类型
+     * @throws HttpParseException 当解析失败时抛出
+     */
     @Override
     public Map<String, Object> asMap() {
         try {
@@ -66,6 +130,12 @@ public final class ResponseBodyImpl implements ResponseBody {
         }
     }
     
+    /**
+     * 将响应体解析为XML文档对象。
+     *
+     * @return XML文档对象
+     * @throws HttpParseException 当XML解析失败时抛出
+     */
     @Override
     public Document asXml() {
         try {
@@ -77,6 +147,14 @@ public final class ResponseBodyImpl implements ResponseBody {
         }
     }
     
+    /**
+     * 将响应体解析为指定类型的Java Bean对象。
+     *
+     * @param <T> 目标Java Bean类型
+     * @param clazz 目标Java Bean的Class对象
+     * @return 解析后的Java Bean对象
+     * @throws HttpParseException 当解析失败时抛出
+     */
     @Override
     public <T> T asBean(Class<T> clazz) {
         try {
@@ -87,6 +165,17 @@ public final class ResponseBodyImpl implements ResponseBody {
         }
     }
     
+    /**
+     * 将响应体解析为指定类名的Java对象。
+     * <p>
+     * 通过{@link TypeResolver}解析类型字符串，支持简单类名、完整类名和泛型类型。
+     * </p>
+     *
+     * @param className 目标类型的类名或泛型类型字符串
+     * @return 解析后的Java对象
+     * @throws HttpParseException 当类型转换失败时抛出
+     * @throws IllegalArgumentException 当类名为空或无效时抛出
+     */
     @Override
     public Object asJava(String className) {
         if (className == null || className.trim().isEmpty()) {
@@ -109,6 +198,15 @@ public final class ResponseBodyImpl implements ResponseBody {
         }
     }
     
+    /**
+     * 将响应体解析为指定类型的Java对象。
+     *
+     * @param <T> 目标Java类型
+     * @param clazz 目标类型的Class对象
+     * @return 解析后的Java对象
+     * @throws HttpParseException 当类型转换失败时抛出
+     * @throws IllegalArgumentException 当目标类型为null时抛出
+     */
     @Override
     public <T> T asJava(Class<T> clazz) {
         if (clazz == null) {
@@ -125,6 +223,18 @@ public final class ResponseBodyImpl implements ResponseBody {
         }
     }
     
+    /**
+     * 从JSON响应体中提取指定路径的值。
+     * <p>
+     * 支持点分隔的路径表达式和数组索引，如"data.users[0].name"。
+     * </p>
+     *
+     * @param <T> 提取值的类型
+     * @param jsonPath JSON路径表达式
+     * @return 提取的值
+     * @throws HttpParseException 当路径无效或提取失败时抛出
+     * @throws IllegalArgumentException 当路径为空时抛出
+     */
     @Override
     public <T> T extract(String jsonPath) {
         if (jsonPath == null || jsonPath.trim().isEmpty()) {
@@ -154,6 +264,19 @@ public final class ResponseBodyImpl implements ResponseBody {
         }
     }
     
+    /**
+     * 从JSON响应体中提取指定路径的值并转换为指定类型。
+     * <p>
+     * 支持点分隔的路径表达式和数组索引，如"data.users[0].name"。
+     * </p>
+     *
+     * @param <T> 提取值的类型
+     * @param jsonPath JSON路径表达式
+     * @param type 目标类型的Class对象
+     * @return 提取并转换后的值
+     * @throws HttpParseException 当路径无效或类型转换失败时抛出
+     * @throws IllegalArgumentException 当路径为空或类型为null时抛出
+     */
     @Override
     public <T> T extract(String jsonPath, Class<T> type) {
         if (jsonPath == null || jsonPath.trim().isEmpty()) {
@@ -182,6 +305,17 @@ public final class ResponseBodyImpl implements ResponseBody {
         }
     }
     
+    /**
+     * 根据路径导航JSON节点树。
+     * <p>
+     * 支持点分隔的属性访问和方括号索引访问。
+     * </p>
+     *
+     * @param root JSON根节点
+     * @param path 点分隔的路径表达式
+     * @return 导航到的JSON节点，如果路径不存在则返回null
+     * @throws HttpParseException 当数组索引格式无效时抛出
+     */
     private JsonNode navigateJsonPath(JsonNode root, String path) {
         JsonNode current = root;
         
@@ -245,6 +379,13 @@ public final class ResponseBodyImpl implements ResponseBody {
         return current;
     }
     
+    /**
+     * 从JSON值节点中提取原始Java值。
+     *
+     * @param <T> 提取值的类型
+     * @param node JSON值节点
+     * @return 提取的Java值（Boolean、Integer、Long、Double或String）
+     */
     @SuppressWarnings("unchecked")
     private <T> T extractValue(JsonNode node) {
         if (node.isBoolean()) {
@@ -265,6 +406,14 @@ public final class ResponseBodyImpl implements ResponseBody {
         return (T) node.asText();
     }
     
+    /**
+     * 使用自定义解析器解析响应体。
+     *
+     * @param <T> 解析结果类型
+     * @param parser 自定义解析函数
+     * @return 解析结果
+     * @throws HttpParseException 当解析失败时抛出
+     */
     @Override
     public <T> T custom(Function<String, T> parser) {
         try {
@@ -275,6 +424,11 @@ public final class ResponseBodyImpl implements ResponseBody {
         }
     }
     
+    /**
+     * 获取响应体的原始字节数组副本。
+     *
+     * @return 响应体字节数组的副本
+     */
     @Override
     public byte[] asBytes() {
         return bytes != null ? bytes.clone() : new byte[0];

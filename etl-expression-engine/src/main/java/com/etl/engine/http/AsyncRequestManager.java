@@ -7,20 +7,50 @@ import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * 异步请求管理器，负责跟踪和管理异步HTTP请求的生命周期。
+ * <p>
+ * 该类提供异步请求的注册、完成跟踪、超时监控、批量取消等功能。
+ * 内部使用定时任务检测长时间未完成的请求，防止资源泄漏。
+ * 同时提供并发请求数量限制，保护系统免受过载影响。
+ * </p>
+ *
+ * @author ETL Engine
+ * @version 1.0
+ * @since 1.0
+ */
 public final class AsyncRequestManager {
     
     private static final Logger logger = LoggerFactory.getLogger(AsyncRequestManager.class);
     
+    /**
+     * 活跃请求映射表，键为请求ID，值为请求上下文
+     */
     private static final ConcurrentHashMap<Long, AsyncRequestContext> ACTIVE_REQUESTS = new ConcurrentHashMap<>();
     
+    /**
+     * 请求ID生成器
+     */
     private static final AtomicLong REQUEST_ID_GENERATOR = new AtomicLong(0);
     
+    /**
+     * 默认请求超时时间（毫秒）
+     */
     private static final long DEFAULT_TIMEOUT = 60_000;
     
+    /**
+     * 最大请求持有时间（毫秒），超过此时间视为潜在泄漏
+     */
     private static final long MAX_REQUEST_HOLD_TIME = 300_000;
     
+    /**
+     * 最大并发请求数
+     */
     private static final int MAX_CONCURRENT_REQUESTS = 100;
     
+    /**
+     * 超时监控定时执行器
+     */
     private static final ScheduledExecutorService TIMEOUT_MONITOR = 
             Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread t = new Thread(r, "async-request-monitor");
@@ -37,9 +67,20 @@ public final class AsyncRequestManager {
         );
     }
     
+    /**
+     * 私有构造方法，防止实例化。
+     */
     private AsyncRequestManager() {
     }
     
+    /**
+     * 注册新的异步请求。
+     *
+     * @param future 异步响应Future对象
+     * @param url 请求URL
+     * @param method HTTP方法
+     * @return 请求ID
+     */
     public static long registerRequest(CompletableFuture<HttpResponse> future, String url, String method) {
         long requestId = REQUEST_ID_GENERATOR.incrementAndGet();
         String threadName = Thread.currentThread().getName();
@@ -62,6 +103,11 @@ public final class AsyncRequestManager {
         return requestId;
     }
     
+    /**
+     * 标记请求为已完成，从活跃列表中移除。
+     *
+     * @param requestId 请求ID
+     */
     public static void completeRequest(long requestId) {
         AsyncRequestContext context = ACTIVE_REQUESTS.remove(requestId);
         if (context != null) {
@@ -70,6 +116,14 @@ public final class AsyncRequestManager {
         }
     }
     
+    /**
+     * 包装Future对象，添加完成跟踪。
+     *
+     * @param <T> Future结果类型
+     * @param future 原始Future对象
+     * @param description 请求描述
+     * @return 包装后的Future对象
+     */
     public static <T> CompletableFuture<T> wrapFuture(CompletableFuture<T> future, String description) {
         long requestId = registerRequest(null, description, "WRAP");
         
@@ -84,6 +138,14 @@ public final class AsyncRequestManager {
         return wrappedFuture;
     }
     
+    /**
+     * 为Future添加超时控制。
+     *
+     * @param <T> Future结果类型
+     * @param future 原始Future对象
+     * @param timeoutMs 超时时间（毫秒）
+     * @return 带超时控制的Future对象
+     */
     public static <T> CompletableFuture<T> withTimeout(CompletableFuture<T> future, long timeoutMs) {
         if (timeoutMs <= 0) {
             timeoutMs = DEFAULT_TIMEOUT;
@@ -106,6 +168,9 @@ public final class AsyncRequestManager {
                 });
     }
     
+    /**
+     * 取消所有活跃的异步请求。
+     */
     public static void cancelAll() {
         logger.info("取消所有活跃异步请求, 数量={}", ACTIVE_REQUESTS.size());
         
@@ -120,6 +185,12 @@ public final class AsyncRequestManager {
         ACTIVE_REQUESTS.clear();
     }
     
+    /**
+     * 取消指定线程的所有异步请求。
+     *
+     * @param threadName 线程名称
+     * @return 取消的请求数量
+     */
     public static int cancelForThread(String threadName) {
         int cancelled = 0;
         
@@ -141,6 +212,12 @@ public final class AsyncRequestManager {
         return cancelled;
     }
     
+    /**
+     * 检查并处理超时的异步请求。
+     * <p>
+     * 定时执行，检查持有时间超过阈值的请求，输出警告日志并取消请求。
+     * </p>
+     */
     public static void checkTimeouts() {
         long now = System.currentTimeMillis();
         int timeoutCount = 0;
@@ -171,14 +248,27 @@ public final class AsyncRequestManager {
         }
     }
     
+    /**
+     * 获取当前活跃请求数量。
+     *
+     * @return 活跃请求数量
+     */
     public static int getActiveRequestCount() {
         return ACTIVE_REQUESTS.size();
     }
     
+    /**
+     * 检查是否可以创建新的请求。
+     *
+     * @return 如果未超过最大并发限制返回true，否则返回false
+     */
     public static boolean canCreateNewRequest() {
         return ACTIVE_REQUESTS.size() < MAX_CONCURRENT_REQUESTS;
     }
     
+    /**
+     * 关闭异步请求管理器，释放所有资源。
+     */
     public static void shutdown() {
         cancelAll();
         TIMEOUT_MONITOR.shutdown();
@@ -193,6 +283,17 @@ public final class AsyncRequestManager {
         logger.info("异步请求管理器已关闭");
     }
     
+    /**
+     * 异步请求上下文记录，封装请求的元数据信息。
+     *
+     * @param requestId 请求ID
+     * @param future 异步响应Future
+     * @param url 请求URL
+     * @param method HTTP方法
+     * @param createTime 创建时间戳
+     * @param threadName 创建线程名称
+     * @param stackTrace 创建时的堆栈跟踪
+     */
     public record AsyncRequestContext(
         long requestId,
         CompletableFuture<HttpResponse> future,
