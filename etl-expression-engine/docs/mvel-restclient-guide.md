@@ -51,6 +51,22 @@ var result = RestClient.post("https://api.example.com/users")
 
 ### 3. 异步请求 + 回调等待（核心功能）
 
+#### 在ETL Expression Engine Console中直接执行
+
+在Console中输入完整链式调用即可：
+
+```
+RestClient.post("http://localhost:8080/mock/third/async").bodyJson({"eventId": "test-121212121", "targetIp": "127.0.0.1", "targetPort": 8080, "delayMs": 2000, "status": "ERROR", "payload": {"message": "处理失败：数据格式错误", "errorCode": "INVALID_DATA"}}).bindCallback(30000).execute().waitCallback()
+```
+
+**关键说明**：
+- `bindCallback()` 自动生成 eventId 并通过请求头 `X-Callback-EventId` 传递
+- 第三方服务应优先从请求头读取回调信息（X-Callback-EventId / X-Callback-TargetIp / X-Callback-TargetPort）
+- bodyJson中的 eventId/targetIp/targetPort 为业务数据，供第三方服务参考使用
+- 如果第三方服务从请求头读取，bodyJson中可省略这些字段
+
+#### 在MVEL表达式中使用变量
+
 ```java
 var body = {
     "action": "process",

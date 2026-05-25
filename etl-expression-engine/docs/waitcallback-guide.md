@@ -104,6 +104,59 @@ var result = RestClient.post("https://third-party.com/api")
 
 ## 使用示例
 
+### 示例0: 在ETL Expression Engine Console中执行（最常用）
+
+在ETL Expression Engine Console中直接输入MVEL表达式即可执行异步回调：
+
+```
+RestClient.post("http://localhost:8080/mock/third/async").bodyJson({"eventId": "test-121212121", "targetIp": "127.0.0.1", "targetPort": 8080, "delayMs": 2000, "status": "ERROR", "payload": {"message": "处理失败：数据格式错误", "errorCode": "INVALID_DATA"}}).bindCallback(30000).execute().waitCallback()
+```
+
+**说明**：
+- `bodyJson()` 中的 `eventId`/`targetIp`/`targetPort` 字段为业务数据，供第三方服务读取使用
+- `bindCallback()` 会自动生成全局唯一的 `eventId`，并通过请求头 `X-Callback-EventId` 传递给第三方
+- 第三方服务应优先从请求头读取 `X-Callback-EventId`/`X-Callback-TargetIp`/`X-Callback-TargetPort`
+- 如果请求体中也包含这些字段，第三方服务应优先使用请求头中的值
+- `delayMs` 控制第三方模拟延迟回调的时间
+- `bindCallback(30000)` 设置回调等待超时为30秒
+
+**执行结果示例**（成功回调）：
+```json
+{
+    "targetIp": "192.168.66.133",
+    "message": "处理完成",
+    "eventId": "a1b2c3d4e5f6",
+    "status": "SUCCESS",
+    "payload": {
+        "result": "processed",
+        "originalRequest": { ... },
+        "processedAt": "2026-05-25T15:43:03Z"
+    },
+    "timestamp": "2026-05-25T15:43:03.530Z"
+}
+```
+
+**执行结果示例**（超时）：
+```
+Error: 执行错误: 等待回调超时: eventId=a1b2c3d4e5f6
+```
+
+### 简写方式（不在bodyJson中传回调参数）
+
+如果第三方服务已约定从请求头读取回调信息，bodyJson中无需再传eventId/targetIp/targetPort：
+
+```
+RestClient.post("http://localhost:8080/mock/third/async").bodyJson({"delayMs": 2000, "status": "SUCCESS", "payload": {"message": "ok"}}).bindCallback(30000).execute().waitCallback()
+```
+
+### 方法别名方式
+
+也可以使用注册的方法别名发起请求：
+
+```
+restPost("http://localhost:8080/mock/third/async").bodyJson({"delayMs": 2000}).bindCallback(30000).execute().waitCallback()
+```
+
 ### 示例1: 基本异步回调
 
 ```java
