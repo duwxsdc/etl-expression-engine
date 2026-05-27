@@ -455,11 +455,11 @@ public class MvelRestClientBuilder {
         }
         
         try {
-            logger.debug("等待回调: eventId={}", eventId);
+            logger.debug("等待回调dwx: eventId={}", eventId);
             
             Object callbackResult = result.future().get();
             
-            logger.debug("回调完成: eventId={}, result={}", eventId, callbackResult);
+            logger.debug("回调完成dwx: eventId={}, result={}", eventId, callbackResult);
             return callbackResult;
             
         } catch (InterruptedException e) {
@@ -482,11 +482,11 @@ public class MvelRestClientBuilder {
         }
         
         try {
-            logger.debug("等待回调: eventId={}, timeout={}ms", eventId, timeoutMs);
+            logger.debug("等待回调dwx: eventId={}, timeout={}ms", eventId, timeoutMs);
             
             Object callbackResult = result.future().get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
             
-            logger.debug("回调完成: eventId={}, result={}", eventId, callbackResult);
+            logger.debug("回调完成dwx: eventId={}, result={}", eventId, callbackResult);
             return callbackResult;
             
         } catch (InterruptedException e) {

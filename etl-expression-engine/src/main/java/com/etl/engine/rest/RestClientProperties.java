@@ -42,11 +42,14 @@ import java.util.function.Function;
  * @see ConfigurationProperties
  * @see EndpointConfig
  */
-@ConfigurationProperties(prefix = "etl.engine.rest-client")
+@ConfigurationProperties(prefix = "etl.engine.rest-client1")
 public class RestClientProperties {
     
     private static final Logger logger = LoggerFactory.getLogger(RestClientProperties.class);
-    
+
+    public RestClientProperties(){
+        System.out.println(1111);
+    }
     /**
      * 是否启用自动Token注入功能。
      * 

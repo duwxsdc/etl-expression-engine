@@ -75,7 +75,12 @@ import java.util.concurrent.Executors;
 public class RestClientCallbackAutoConfig {
     
     private static final Logger logger = LoggerFactory.getLogger(RestClientCallbackAutoConfig.class);
-    
+    // ====================== 修复方式 1：构造器注入（最推荐）======================
+    private final RestClientProperties properties;
+
+    public RestClientCallbackAutoConfig(RestClientProperties properties) {
+        this.properties = properties;
+    }
     /**
      * 创建配置了虚拟线程支持的HttpClient实例。
      * 
@@ -95,7 +100,7 @@ public class RestClientCallbackAutoConfig {
      */
     @Bean
     @ConditionalOnMissingBean
-    public HttpClient httpClient(RestClientProperties properties) {
+    public HttpClient httpClient() {
         logger.info("创建HttpClient（虚拟线程支持）");
         HttpClient.Builder builder = HttpClient.newBuilder()
             .connectTimeout(properties != null ? properties.getConnectTimeout() : Duration.ofSeconds(10))
