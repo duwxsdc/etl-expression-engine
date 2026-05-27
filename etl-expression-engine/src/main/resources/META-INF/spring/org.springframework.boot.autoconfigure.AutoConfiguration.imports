@@ -1,1 +1,2 @@
+com.etl.engine.rest.RestClientCallbackAutoConfig
 com.etl.engine.rest.enhanced.EnhancedRestClientAutoConfiguration

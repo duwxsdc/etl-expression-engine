@@ -3,8 +3,6 @@ package com.etl.engine.rest.enhanced;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.client.RestClient;
 
-import java.util.Map;
-
 public final class EnhancedRestClient {
     
     private final RestClient delegate;
@@ -24,39 +22,39 @@ public final class EnhancedRestClient {
     }
     
     public EnhancedRequestSpec get() {
-        return new EnhancedRequestSpec(delegate.get(), "GET", extensionRegistry);
+        return new EnhancedRequestSpec(delegate, HttpMethod.GET, extensionRegistry);
     }
     
     public EnhancedRequestSpec post() {
-        return new EnhancedRequestSpec(delegate.post(), "POST", extensionRegistry);
+        return new EnhancedRequestSpec(delegate, HttpMethod.POST, extensionRegistry);
     }
     
     public EnhancedRequestSpec put() {
-        return new EnhancedRequestSpec(delegate.put(), "PUT", extensionRegistry);
+        return new EnhancedRequestSpec(delegate, HttpMethod.PUT, extensionRegistry);
     }
     
     public EnhancedRequestSpec delete() {
-        return new EnhancedRequestSpec(delegate.delete(), "DELETE", extensionRegistry);
+        return new EnhancedRequestSpec(delegate, HttpMethod.DELETE, extensionRegistry);
     }
     
     public EnhancedRequestSpec patch() {
-        return new EnhancedRequestSpec(delegate.patch(), "PATCH", extensionRegistry);
+        return new EnhancedRequestSpec(delegate, HttpMethod.PATCH, extensionRegistry);
     }
     
     public EnhancedRequestSpec head() {
-        return new EnhancedRequestSpec(delegate.head(), "HEAD", extensionRegistry);
+        return new EnhancedRequestSpec(delegate, HttpMethod.HEAD, extensionRegistry);
     }
     
     public EnhancedRequestSpec options() {
-        return new EnhancedRequestSpec(delegate.options(), "OPTIONS", extensionRegistry);
+        return new EnhancedRequestSpec(delegate, HttpMethod.OPTIONS, extensionRegistry);
     }
     
     public EnhancedRequestSpec method(String method) {
-        return new EnhancedRequestSpec(delegate.method(HttpMethod.valueOf(method.toUpperCase())), method.toUpperCase(), extensionRegistry);
+        return new EnhancedRequestSpec(delegate, HttpMethod.valueOf(method.toUpperCase()), extensionRegistry);
     }
     
     public EnhancedRequestSpec method(HttpMethod method) {
-        return new EnhancedRequestSpec(delegate.method(method), method.name(), extensionRegistry);
+        return new EnhancedRequestSpec(delegate, method, extensionRegistry);
     }
     
     public RestClient getDelegate() {

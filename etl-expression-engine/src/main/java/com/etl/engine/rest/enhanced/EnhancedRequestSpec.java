@@ -1,28 +1,27 @@
 package com.etl.engine.rest.enhanced;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 import java.util.*;
-import java.util.function.Function;
 
 public final class EnhancedRequestSpec {
     
-    private final RestClient.RequestHeadersSpec<?> delegate;
-    private final String method;
+    private final RestClient restClient;
+    private final HttpMethod method;
     private final ExtensionRegistry extensionRegistry;
     private final Map<String, String> headers = new LinkedHashMap<>();
     private final Set<String> enabledExtensions = new LinkedHashSet<>();
     private final Map<String, Object> attributes = new HashMap<>();
     private String url;
     private Object body;
-    private MediaType contentType;
     private boolean callbackEnabled = false;
     private long callbackTimeoutMs = 30000;
     private String callbackEventId;
     
-    EnhancedRequestSpec(RestClient.RequestHeadersSpec<?> delegate, String method, ExtensionRegistry registry) {
-        this.delegate = delegate;
+    EnhancedRequestSpec(RestClient restClient, HttpMethod method, ExtensionRegistry registry) {
+        this.restClient = restClient;
         this.method = method;
         this.extensionRegistry = registry;
     }
@@ -44,10 +43,6 @@ public final class EnhancedRequestSpec {
         return this;
     }
     
-    public EnhancedRequestSpec headers(Consumer<org.springframework.http.HttpHeaders> headersConsumer) {
-        return this;
-    }
-    
     public EnhancedRequestSpec accept(MediaType... acceptableMediaTypes) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < acceptableMediaTypes.length; i++) {
@@ -58,19 +53,12 @@ public final class EnhancedRequestSpec {
         return this;
     }
     
-    public EnhancedRequestSpec accept(String... acceptableMediaTypes) {
-        headers.put("Accept", String.join(", ", acceptableMediaTypes));
-        return this;
-    }
-    
     public EnhancedRequestBodySpec contentType(MediaType contentType) {
-        this.contentType = contentType;
         headers.put("Content-Type", contentType.toString());
         return new EnhancedRequestBodySpec(this);
     }
     
     public EnhancedRequestBodySpec contentType(String contentType) {
-        this.contentType = MediaType.parseMediaType(contentType);
         headers.put("Content-Type", contentType);
         return new EnhancedRequestBodySpec(this);
     }
@@ -87,20 +75,18 @@ public final class EnhancedRequestSpec {
     
     public EnhancedResponseSpec retrieve() {
         applyExtensions();
-        applyHeadersToDelegate();
-        return new EnhancedResponseSpec(delegate.retrieve(), this);
+        RestClient.ResponseSpec responseSpec = buildAndExecute();
+        return new EnhancedResponseSpec(responseSpec, this);
     }
     
     public <T> T body(Class<T> bodyType) {
         applyExtensions();
-        applyHeadersToDelegate();
-        return delegate.retrieve().body(bodyType);
+        return buildAndExecute().body(bodyType);
     }
     
     public <T> ResponseEntity<T> toEntity(Class<T> bodyType) {
         applyExtensions();
-        applyHeadersToDelegate();
-        org.springframework.http.ResponseEntity<T> response = delegate.retrieve().toEntity(bodyType);
+        org.springframework.http.ResponseEntity<T> response = buildAndExecute().toEntity(bodyType);
         return new ResponseEntity<>(response);
     }
     
@@ -109,7 +95,7 @@ public final class EnhancedRequestSpec {
         return this;
     }
     
-    public EnhancedRequestSpec defaultToken(Function<String, String> tokenProvider) {
+    public EnhancedRequestSpec defaultToken(java.util.function.Function<String, String> tokenProvider) {
         attributes.put("tokenProvider", tokenProvider);
         enabledExtensions.add("defaultToken");
         return this;
@@ -156,53 +142,17 @@ public final class EnhancedRequestSpec {
         return (T) attributes.get(key);
     }
     
-    String getUrl() {
-        return url;
-    }
-    
-    String getMethod() {
-        return method;
-    }
-    
-    Map<String, String> getHeaders() {
-        return headers;
-    }
-    
-    Object getBody() {
-        return body;
-    }
-    
-    void setBody(Object body) {
-        this.body = body;
-    }
-    
-    MediaType getContentType() {
-        return contentType;
-    }
-    
-    boolean isCallbackEnabled() {
-        return callbackEnabled;
-    }
-    
-    long getCallbackTimeoutMs() {
-        return callbackTimeoutMs;
-    }
-    
-    String getCallbackEventId() {
-        return callbackEventId;
-    }
-    
-    void setCallbackEventId(String eventId) {
-        this.callbackEventId = eventId;
-    }
-    
-    Map<String, Object> getAttributes() {
-        return attributes;
-    }
-    
-    RestClient.RequestHeadersSpec<?> getDelegate() {
-        return delegate;
-    }
+    String getUrl() { return url; }
+    String getMethod() { return method.name(); }
+    Map<String, String> getHeaders() { return headers; }
+    Object getBody() { return body; }
+    void setBody(Object body) { this.body = body; }
+    boolean isCallbackEnabled() { return callbackEnabled; }
+    long getCallbackTimeoutMs() { return callbackTimeoutMs; }
+    String getCallbackEventId() { return callbackEventId; }
+    void setCallbackEventId(String eventId) { this.callbackEventId = eventId; }
+    Map<String, Object> getAttributes() { return attributes; }
+    Set<String> getEnabledExtensions() { return enabledExtensions; }
     
     private void applyExtensions() {
         if (!enabledExtensions.isEmpty()) {
@@ -211,57 +161,37 @@ public final class EnhancedRequestSpec {
         }
     }
     
-    private void applyHeadersToDelegate() {
+    private RestClient.ResponseSpec buildAndExecute() {
+        RestClient.RequestBodySpec requestSpec = restClient.method(method).uri(url);
+        
         for (Map.Entry<String, String> header : headers.entrySet()) {
-            delegate.header(header.getKey(), header.getValue());
+            requestSpec.header(header.getKey(), header.getValue());
         }
-    }
-    
-    @FunctionalInterface
-    public interface Consumer<T> {
-        void accept(T t);
+        
+        if (body != null) {
+            requestSpec.body(body);
+        }
+        
+        return requestSpec.retrieve();
     }
     
     private class ExtensionContextImpl implements RestClientExtension.ExtensionContext {
         @Override
-        public String getUrl() {
-            return url;
-        }
-        
+        public String getUrl() { return url; }
         @Override
-        public String getMethod() {
-            return method;
-        }
-        
+        public String getMethod() { return method.name(); }
         @Override
-        public Map<String, String> getHeaders() {
-            return headers;
-        }
-        
+        public Map<String, String> getHeaders() { return headers; }
         @Override
-        public Object getBody() {
-            return body;
-        }
-        
+        public Object getBody() { return body; }
         @Override
-        public void addHeader(String name, String value) {
-            headers.put(name, value);
-        }
-        
+        public void addHeader(String name, String value) { headers.put(name, value); }
         @Override
-        public void setBody(Object body) {
-            EnhancedRequestSpec.this.body = body;
-        }
-        
+        public void setBody(Object body) { EnhancedRequestSpec.this.body = body; }
         @Override
-        public <T> void setAttribute(String key, T value) {
-            attributes.put(key, value);
-        }
-        
+        public <T> void setAttribute(String key, T value) { attributes.put(key, value); }
         @Override
         @SuppressWarnings("unchecked")
-        public <T> T getAttribute(String key) {
-            return (T) attributes.get(key);
-        }
+        public <T> T getAttribute(String key) { return (T) attributes.get(key); }
     }
 }

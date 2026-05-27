@@ -1,8 +1,8 @@
 package com.etl.engine.rest.enhanced;
 
-import org.springframework.web.client.RestClient;
+import org.springframework.http.MediaType;
 
-import java.util.function.Consumer;
+import java.util.Map;
 
 public final class EnhancedRequestBodySpec {
     
@@ -39,10 +39,6 @@ public final class EnhancedRequestBodySpec {
         return this;
     }
     
-    public EnhancedRequestBodySpec headers(Consumer<org.springframework.http.HttpHeaders> headersConsumer) {
-        return this;
-    }
-    
     public EnhancedRequestBodySpec defaultToken() {
         requestSpec.defaultToken();
         return this;
@@ -60,6 +56,11 @@ public final class EnhancedRequestBodySpec {
     
     public EnhancedRequestBodySpec callback(String eventId, long timeoutMs) {
         requestSpec.callback(eventId, timeoutMs);
+        return this;
+    }
+    
+    public EnhancedRequestBodySpec enable(String... extensionNames) {
+        requestSpec.enable(extensionNames);
         return this;
     }
     
