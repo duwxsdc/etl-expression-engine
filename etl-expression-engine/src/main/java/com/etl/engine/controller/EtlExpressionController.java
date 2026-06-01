@@ -2,8 +2,10 @@ package com.etl.engine.controller;
 
 import com.etl.engine.context.EtlContext;
 import com.etl.engine.context.EtlContextManager;
+import com.etl.engine.context.GlobalContext;
 import com.etl.engine.mvel.MvelExpressionEngine;
 import com.etl.engine.model.ExecuteResult;
+import com.etl.engine.model.ExtendedInfo;
 import com.etl.engine.util.PerformanceTracker;
 import com.etl.engine.util.RequestLogger;
 import org.slf4j.Logger;
@@ -43,6 +45,9 @@ public class EtlExpressionController {
         
         String requestId = RequestLogger.generateRequestId();
         PerformanceTracker.startTracking(requestId, "executeExpression");
+        
+        // Initialize global context for this request
+        GlobalContext.init(requestId);
         
         RequestLogger.logRequest(logger, requestId, "/etl/expression/execute", "POST",
                 Map.of("sessionId", sessionId != null ? sessionId : "NEW",
@@ -107,6 +112,14 @@ public class EtlExpressionController {
                         "Session context updated", Map.of("sessionId", sessionId,
                                 "variableCount", context.getVariableCount(),
                                 "sessionUpdateMs", PerformanceTracker.getPhaseDuration("SESSION_UPDATE")));
+                
+                // Attach extended info from global context
+                ExtendedInfo extendedInfo = GlobalContext.current().buildExtendedInfo();
+                result = new ExecuteResult(
+                        result.sessionId(), result.originExpr(), result.success(),
+                        result.finalResult(), result.errorMsg(), result.contextVars(),
+                        extendedInfo
+                );
             }
             
             PerformanceTracker.recordPhase("RESPONSE_BUILD");
@@ -137,13 +150,17 @@ public class EtlExpressionController {
             RequestLogger.logError(logger, requestId, "EXECUTION_ERROR",
                     "Expression execution failed: " + e.getMessage(), e);
             
+            ExtendedInfo extendedInfo = GlobalContext.current().buildExtendedInfo(e.getMessage());
             ExecuteResult errorResult = ExecuteResult.failure(
                 sessionId != null ? sessionId : "unknown",
                 expression,
                 "服务器内部错误: " + e.getMessage(),
-                new HashMap<>()
+                new HashMap<>(),
+                extendedInfo
             );
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResult);
+        } finally {
+            GlobalContext.clear();
         }
     }
 

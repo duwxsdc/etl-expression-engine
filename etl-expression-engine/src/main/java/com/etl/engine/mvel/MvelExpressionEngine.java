@@ -3,9 +3,10 @@ package com.etl.engine.mvel;
 import com.etl.engine.config.EngineProperties;
 import com.etl.engine.context.EtlContext;
 import com.etl.engine.context.EtlContextScope;
+import com.etl.engine.context.GlobalContext;
 import com.etl.engine.model.ExecuteResult;
-import com.etl.engine.rest.MvelRestClient;
-import com.etl.engine.rest.MvelRestClientBuilder;
+import com.etl.engine.model.ExtendedInfo;
+import com.etl.engine.rest.ext.ExtRestClient;
 import com.etl.engine.sql.SqlExecuteEngine;
 import org.mvel2.MVEL;
 import org.mvel2.ParserContext;
@@ -47,8 +48,7 @@ public class MvelExpressionEngine {
         this.mvelSecuritySandbox = mvelSecuritySandbox;
         this.sqlExecuteEngine = sqlExecuteEngine;
         SqlFunction.init(sqlExecuteEngine);
-        HttpFunction.init();
-        logger.info("MVEL表达式引擎初始化完成, SQL函数和HTTP函数已注册");
+        logger.info("MVEL表达式引擎初始化完成, SQL函数已注册");
     }
 
     public ExecuteResult execute(String expression, EtlContext context) {
@@ -95,15 +95,27 @@ public class MvelExpressionEngine {
     }
 
     private ExecuteResult executeWithTimeout(String expression, EtlContext context) {
+        // Capture GlobalContext requestId for virtual thread propagation
+        GlobalContext mainCtx = GlobalContext.current();
+        String capturedRequestId = mainCtx != null ? mainCtx.getRequestId() : null;
+        
         try {
             Future<ExecuteResult> future = Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
                 try {
+                    // Set GlobalContext in virtual thread with same requestId
+                    if (capturedRequestId != null) {
+                        GlobalContext.init(capturedRequestId);
+                    }
+                    
                     return ScopedValue.where(EtlContextScope.CURRENT_CONTEXT, context)
                                       .call(() -> executeInternal(expression, context));
                 } catch (Exception e) {
                     logger.error("虚拟线程执行异常: sessionId={}, expression={}",
                             context.getSessionId(), expression, e);
                     throw new RuntimeException(e);
+                } finally {
+                    // Clean up virtual thread's GlobalContext
+                    GlobalContext.clear();
                 }
             });
 
@@ -193,19 +205,8 @@ public class MvelExpressionEngine {
         try {
             parserContext.addImport("sql", SqlFunction.class.getMethod("sql", String.class));
             parserContext.addImport("sqlValue", SqlFunction.class.getMethod("sqlValue", String.class));
-            parserContext.addImport("httpRequest", HttpFunction.class.getMethod("httpRequest", String.class));
-            parserContext.addImport("http", HttpFunction.class.getMethod("http", String.class));
 
-            parserContext.addImport("RestClient", MvelRestClient.class);
-            parserContext.addInput("RestClient", MvelRestClient.class);
-
-            parserContext.addImport("MvelRestClientBuilder", MvelRestClientBuilder.class);
-            parserContext.addImport("AsyncResult", MvelRestClientBuilder.AsyncResult.class);
-
-            parserContext.addImport("restGet", MvelRestClient.class.getMethod("get", String.class));
-            parserContext.addImport("restPost", MvelRestClient.class.getMethod("post", String.class));
-            parserContext.addImport("restPut", MvelRestClient.class.getMethod("put", String.class));
-            parserContext.addImport("restDelete", MvelRestClient.class.getMethod("delete", String.class));
+            parserContext.addImport("RestClient", ExtRestClient.class);
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException("函数注册失败", e);
         }

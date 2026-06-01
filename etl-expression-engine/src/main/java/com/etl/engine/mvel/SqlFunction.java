@@ -1,6 +1,8 @@
 package com.etl.engine.mvel;
 
+import com.etl.engine.context.GlobalContext;
 import com.etl.engine.sql.SqlExecuteEngine;
+import com.etl.engine.util.ChainCallLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,12 +26,14 @@ public class SqlFunction {
         if (sqlExecuteEngine == null) {
             throw new IllegalStateException("SQL执行引擎未初始化");
         }
+        long start = System.currentTimeMillis();
         logger.debug("MVEL SQL函数调用: {}", sqlExpression);
         Object result = sqlExecuteEngine.executeQuery(sqlExpression);
-        if (result instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> list = (List<Map<String, Object>>) result;
-            return list;
+        long duration = System.currentTimeMillis() - start;
+        
+        if (result instanceof List<?> list) {
+            ChainCallLogger.logSqlExecution(sqlExpression, list.size(), duration);
+            return (List<Map<String, Object>>) list;
         }
         throw new RuntimeException("SQL查询返回了非预期类型: " + (result != null ? result.getClass().getName() : "null"));
     }

@@ -13,6 +13,7 @@ import java.util.Collections;
  * @param finalResult 最终执行结果
  * @param errorMsg 错误信息
  * @param contextVars 当前上下文变量
+ * @param extended 扩展信息（可选，默认为null保持向后兼容）
  */
 public record ExecuteResult(
     String sessionId,
@@ -20,7 +21,8 @@ public record ExecuteResult(
     boolean success,
     Object finalResult,
     String errorMsg,
-    Map<String, Object> contextVars
+    Map<String, Object> contextVars,
+    ExtendedInfo extended
 ) {
     
     public static ExecuteResult success(String sessionId, String originExpr, Object finalResult, Map<String, Object> contextVars) {
@@ -30,7 +32,8 @@ public record ExecuteResult(
             true, 
             finalResult, 
             null,
-            contextVars != null ? contextVars : Collections.emptyMap()
+            contextVars != null ? contextVars : Collections.emptyMap(),
+            null
         );
     }
     
@@ -41,7 +44,32 @@ public record ExecuteResult(
             false, 
             null, 
             errorMsg,
-            contextVars != null ? contextVars : Collections.emptyMap()
+            contextVars != null ? contextVars : Collections.emptyMap(),
+            null
+        );
+    }
+    
+    public static ExecuteResult success(String sessionId, String originExpr, Object finalResult, Map<String, Object> contextVars, ExtendedInfo extended) {
+        return new ExecuteResult(
+            sessionId, 
+            originExpr, 
+            true, 
+            finalResult, 
+            null,
+            contextVars != null ? contextVars : Collections.emptyMap(),
+            extended
+        );
+    }
+    
+    public static ExecuteResult failure(String sessionId, String originExpr, String errorMsg, Map<String, Object> contextVars, ExtendedInfo extended) {
+        return new ExecuteResult(
+            sessionId, 
+            originExpr, 
+            false, 
+            null, 
+            errorMsg,
+            contextVars != null ? contextVars : Collections.emptyMap(),
+            extended
         );
     }
 }
