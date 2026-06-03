@@ -3,6 +3,8 @@ package com.etl.engine.rest.ext;
 import com.etl.engine.rest.ext.callback.CallbackRegistry;
 import com.etl.engine.rest.ext.interceptor.ResponseInterceptor;
 import com.etl.engine.rest.ext.validator.ResponseValidationException;
+import com.etl.engine.util.ConvertUtils;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.client.RestClient;
 
@@ -68,32 +70,72 @@ public class ExtResponseSpec {
         return delegate.toBodilessEntity();
     }
 
+    // ==================== 类型转换方法 ====================
+
+    /**
+     * 获取响应体并转换为Map
+     */
+    public Map<String, Object> bodyAsMap() {
+        Object body = delegate.body(Object.class);
+        this.cachedResponse = body;
+        return ConvertUtils.toMap(body);
+    }
+
+    /**
+     * 获取响应体并转换为JsonNode
+     */
+    public JsonNode bodyAsJsonNode() {
+        Object body = delegate.body(Object.class);
+        this.cachedResponse = body;
+        return ConvertUtils.toJsonNode(body);
+    }
+
+    /**
+     * 获取响应体并转换为指定类型VO
+     */
+    public <T> T bodyAsVO(Class<T> type) {
+        Object body = delegate.body(Object.class);
+        this.cachedResponse = body;
+        return ConvertUtils.toBean(body, type);
+    }
+
     // ==================== 校验扩展 ====================
 
     /**
-     * 校验响应中是否包含指定key
+     * 校验响应中是否包含指定key（支持嵌套路径，如 "data.items[0].name"）
+     * <p>支持Map、JsonNode、POJO、JSON字符串等多种类型</p>
      */
     public ExtResponseSpec assertContainsKey(String key) {
         ensureCachedResponse();
-        if (cachedResponse instanceof Map<?, ?> map) {
-            if (!map.containsKey(key)) {
-                throw new ResponseValidationException("响应缺少必要字段: " + key);
-            }
+        if (!ConvertUtils.hasKey(cachedResponse, key)) {
+            throw new ResponseValidationException("响应缺少必要字段: " + key);
         }
         return this;
     }
 
     /**
-     * 校验响应中指定key的值
+     * 校验响应中指定key的值（支持嵌套路径）
+     * <p>支持Map、JsonNode、POJO、JSON字符串等多种类型</p>
      */
     public ExtResponseSpec assertKeyValue(String key, Object expectedValue) {
         ensureCachedResponse();
-        if (cachedResponse instanceof Map<?, ?> map) {
-            Object actual = map.get(key);
-            if (!Objects.equals(actual, expectedValue)) {
-                throw new ResponseValidationException(
-                        "字段值不匹配: " + key + ", 期望=" + expectedValue + ", 实际=" + actual);
-            }
+        if (!ConvertUtils.hasKeyAndEquals(cachedResponse, key, expectedValue)) {
+            Object actual = ConvertUtils.getStr(cachedResponse, key);
+            throw new ResponseValidationException(
+                    "字段值不匹配: " + key + ", 期望=" + expectedValue + ", 实际=" + actual);
+        }
+        return this;
+    }
+
+    /**
+     * 校验响应中指定key的值并转换为目标类型
+     */
+    public <T> ExtResponseSpec assertKeyValue(String key, Object expectedValue, Class<T> type) {
+        ensureCachedResponse();
+        if (!ConvertUtils.hasKeyAndEquals(cachedResponse, key, expectedValue)) {
+            Object actual = ConvertUtils.getStr(cachedResponse, key);
+            throw new ResponseValidationException(
+                    "字段值不匹配: " + key + ", 期望=" + expectedValue + ", 实际=" + actual);
         }
         return this;
     }
@@ -118,6 +160,24 @@ public class ExtResponseSpec {
     public ExtResponseSpec peek(Consumer<Object> consumer) {
         ensureCachedResponse();
         consumer.accept(cachedResponse);
+        return this;
+    }
+
+    /**
+     * 查看响应内容（转换为Map）
+     */
+    public ExtResponseSpec peekAsMap(Consumer<Map<String, Object>> consumer) {
+        ensureCachedResponse();
+        consumer.accept(ConvertUtils.toMap(cachedResponse));
+        return this;
+    }
+
+    /**
+     * 查看响应内容（转换为JsonNode）
+     */
+    public ExtResponseSpec peekAsJsonNode(Consumer<JsonNode> consumer) {
+        ensureCachedResponse();
+        consumer.accept(ConvertUtils.toJsonNode(cachedResponse));
         return this;
     }
 
