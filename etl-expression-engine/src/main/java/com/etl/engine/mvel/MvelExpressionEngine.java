@@ -249,23 +249,20 @@ public class MvelExpressionEngine {
 
     /**
      * 智能分割表达式，正确处理字符串字面量、单引号、双引号、注释等边界
-     * 
+     *
      * @param expression 原始表达式
      * @return 分割后的表达式列表
      */
-    private List<String> splitExpression(String expression) {
+    private static List<String> splitExpression(String expression) {
         List<String> result = new ArrayList<>();
         StringBuilder current = new StringBuilder();
-        
         boolean inSingleQuote = false;      // 单引号字符串内
         boolean inDoubleQuote = false;      // 双引号字符串内
         boolean inLineComment = false;      // 行注释内 //
         boolean inBlockComment = false;     // 块注释内 /* */
         char prevChar = '\0';
-        
         for (int i = 0; i < expression.length(); i++) {
             char c = expression.charAt(i);
-            
             // 处理块注释结束
             if (inBlockComment) {
                 if (prevChar == '*' && c == '/') {
@@ -276,7 +273,6 @@ public class MvelExpressionEngine {
                 prevChar = c;
                 continue;
             }
-            
             // 处理行注释结束（遇到换行）
             if (inLineComment) {
                 if (c == '\n' || c == '\r') {
@@ -284,34 +280,31 @@ public class MvelExpressionEngine {
                 }
                 continue;
             }
-            
             // 处理转义字符
             if (prevChar == '\\') {
                 current.append(c);
                 prevChar = '\0';
                 continue;
             }
-            
-            // 检查注释开始
-            if (prevChar == '/' && c == '/') {
-                // 移除之前添加的 '/'
-                if (current.length() > 0) {
-                    current.deleteCharAt(current.length() - 1);
+            // 检查注释开始（只有不在字符串内才处理）
+            if (!inSingleQuote && !inDoubleQuote) {
+                if (prevChar == '/' && c == '/') {
+                    if (current.length() > 0) {
+                        current.deleteCharAt(current.length() - 1);
+                    }
+                    inLineComment = true;
+                    prevChar = '\0';
+                    continue;
                 }
-                inLineComment = true;
-                prevChar = '\0';
-                continue;
-            }
-            if (prevChar == '/' && c == '*') {
-                // 移除之前添加的 '/'
-                if (current.length() > 0) {
-                    current.deleteCharAt(current.length() - 1);
+                if (prevChar == '/' && c == '*') {
+                    if (current.length() > 0) {
+                        current.deleteCharAt(current.length() - 1);
+                    }
+                    inBlockComment = true;
+                    prevChar = '\0';
+                    continue;
                 }
-                inBlockComment = true;
-                prevChar = '\0';
-                continue;
             }
-            
             // 处理引号切换
             if (c == '\'' && !inDoubleQuote) {
                 inSingleQuote = !inSingleQuote;
@@ -325,7 +318,6 @@ public class MvelExpressionEngine {
                 prevChar = c;
                 continue;
             }
-            
             // 只有不在字符串内时才按分号分割
             if (c == ';' && !inSingleQuote && !inDoubleQuote) {
                 String segment = current.toString().trim();
@@ -336,17 +328,14 @@ public class MvelExpressionEngine {
                 prevChar = '\0';
                 continue;
             }
-            
             current.append(c);
             prevChar = c;
         }
-        
         // 添加最后一段
         String segment = current.toString().trim();
         if (!segment.isEmpty()) {
             result.add(segment);
         }
-        
         return result;
     }
 }
