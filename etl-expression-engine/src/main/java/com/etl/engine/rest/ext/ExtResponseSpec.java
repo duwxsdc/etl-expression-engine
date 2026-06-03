@@ -11,6 +11,7 @@ import org.springframework.web.client.RestClient;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * 扩展响应处理器
@@ -44,7 +45,14 @@ public class ExtResponseSpec {
      * 获取响应体
      */
     public <T> T body(Class<T> type) {
-        T result = delegate.body(type);
+        return executeWithCallback(() -> delegate.body(type), type);
+    }
+
+    /**
+     * 执行Supplier并处理回调
+     */
+    private <T> T executeWithCallback(Supplier<T> supplier, Class<T> type) {
+        T result = supplier.get();
         this.cachedResponse = result;
 
         if (requestSpec.isCallbackEnabled()) {
