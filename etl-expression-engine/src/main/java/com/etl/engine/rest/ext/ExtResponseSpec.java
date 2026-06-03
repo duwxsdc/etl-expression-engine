@@ -43,13 +43,16 @@ public class ExtResponseSpec {
     /**
      * 获取响应体
      */
-    @SuppressWarnings("unchecked")
     public <T> T body(Class<T> type) {
         T result = delegate.body(type);
         this.cachedResponse = result;
 
         if (requestSpec.isCallbackEnabled()) {
-            return (T) handleCallback(result);
+            Object callbackResult = handleCallback();
+            // 回调结果为null时返回原始结果，否则尝试转换为目标类型
+            if (callbackResult != null) {
+                return ConvertUtils.toBean(callbackResult, type);
+            }
         }
         return result;
     }
@@ -201,7 +204,7 @@ public class ExtResponseSpec {
     /**
      * 处理回调等待
      */
-    private Object handleCallback(Object initialResult) {
+    private Object handleCallback() {
         String eventId = requestSpec.getHeaders().get("X-Callback-EventId");
         long timeoutMs = requestSpec.getCallbackTimeoutMs();
 
