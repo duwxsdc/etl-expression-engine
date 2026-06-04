@@ -10,7 +10,6 @@ import com.etl.engine.rest.ext.ExtRestClient;
 import com.etl.engine.sql.SqlExecuteEngine;
 import org.mvel2.MVEL;
 import org.mvel2.ParserContext;
-import org.mvel2.compiler.CompiledExpression;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -84,6 +83,13 @@ public class MvelExpressionEngine {
 
         try {
             return executeWithTimeout(trimmedExpression, context);
+        } catch (MvelInterruptInterceptor.MvelExecutionInterruptedException e) {
+            return ExecuteResult.failure(
+                context.getSessionId(),
+                expression,
+                "表达式执行被中断: " + e.getMessage(),
+                context.getAllVariables()
+            );
         } catch (Exception e) {
             logger.error("表达式执行异常: sessionId={}, expression={}",
                     context.getSessionId(), expression, e);
@@ -101,8 +107,9 @@ public class MvelExpressionEngine {
         GlobalContext mainCtx = GlobalContext.current();
         String capturedRequestId = mainCtx != null ? mainCtx.getRequestId() : null;
         
+        Future<ExecuteResult> future = null;
         try {
-            Future<ExecuteResult> future = Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
+            future = Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
                 try {
                     // Set GlobalContext in virtual thread with same requestId
                     if (capturedRequestId != null) {
@@ -111,6 +118,9 @@ public class MvelExpressionEngine {
                     
                     return ScopedValue.where(EtlContextScope.CURRENT_CONTEXT, context)
                                       .call(() -> executeInternal(expression, context));
+                } catch (MvelInterruptInterceptor.MvelExecutionInterruptedException e) {
+                    // 中断异常直接向上传播
+                    throw e;
                 } catch (Exception e) {
                     logger.error("虚拟线程执行异常: sessionId={}, expression={}",
                             context.getSessionId(), expression, e);
@@ -123,8 +133,17 @@ public class MvelExpressionEngine {
 
             return future.get(properties.getExpressionTimeout(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            logger.warn("表达式执行超时: sessionId={}, expression={}",
-                    context.getSessionId(), expression);
+            // 根据配置决定是否中断执行线程
+            if (future != null) {
+                future.cancel(properties.isInterruptOnTimeout());
+            }
+            if (properties.isInterruptOnTimeout()) {
+                logger.warn("表达式执行超时并已中断: sessionId={}, expression={}",
+                        context.getSessionId(), expression);
+            } else {
+                logger.warn("表达式执行超时: sessionId={}, expression={}",
+                        context.getSessionId(), expression);
+            }
             return ExecuteResult.failure(
                 context.getSessionId(),
                 expression,
@@ -133,6 +152,15 @@ public class MvelExpressionEngine {
             );
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
+            // 区分中断异常和业务异常
+            if (cause instanceof MvelInterruptInterceptor.MvelExecutionInterruptedException) {
+                return ExecuteResult.failure(
+                    context.getSessionId(),
+                    expression,
+                    "表达式执行被中断",
+                    context.getAllVariables()
+                );
+            }
             String errorMsg = cause != null ? cause.getMessage() : e.getMessage();
             logger.error("表达式执行错误: sessionId={}, error={}",
                     context.getSessionId(), errorMsg);
@@ -209,6 +237,9 @@ public class MvelExpressionEngine {
             parserContext.addImport("sqlValue", SqlFunction.class.getMethod("sqlValue", String.class));
 
             parserContext.addImport("RestClient", ExtRestClient.class);
+
+            // 注册中断检查函数 _ic()，供表达式转换器注入的调用使用
+            parserContext.addImport("_ic", InterruptCheck.class.getMethod("check"));
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException("函数注册失败", e);
         }
@@ -216,33 +247,46 @@ public class MvelExpressionEngine {
         Map<String, Object> contextMap = new HashMap<>(context.getAllVariables());
 
         try {
-            logger.debug("MVEL编译表达式: 长度={}, 预览={}", 
-                    expression.length(), 
-                    expression.length() > 100 ? expression.substring(0, 100) + "..." : expression);
-            
-            Serializable compiled = MVEL.compileExpression(expression, parserContext);
-            
+            // 关键：编译前在循环体中注入中断检查调用 _ic()
+            String transformedExpression = MvelInterceptorInjector.injectInterruptChecks(expression);
+
+            logger.debug("MVEL编译表达式: 长度={}, 预览={}",
+                    transformedExpression.length(),
+                    transformedExpression.length() > 100 ? transformedExpression.substring(0, 100) + "..." : transformedExpression);
+
+            Serializable compiled = MVEL.compileExpression(transformedExpression, parserContext);
+
             logger.debug("MVEL执行表达式: 编译成功, 上下文变量数={}", contextMap.size());
-            
+
             Object result = MVEL.executeExpression(compiled, contextMap);
-            
-            logger.debug("MVEL执行完成: 结果类型={}, 结果={}", 
+
+            // 将执行过程中修改的变量同步回上下文（循环内的赋值等）
+            contextMap.forEach((key, value) -> {
+                if (!key.equals("_ic")) {  // 排除中断检查函数
+                    context.setVariable(key, value);
+                }
+            });
+
+            logger.debug("MVEL执行完成: 结果类型={}, 结果={}",
                     result != null ? result.getClass().getName() : "null",
                     result);
-            
+
             return result;
+        } catch (MvelInterruptInterceptor.MvelExecutionInterruptedException e) {
+            // 中断异常，向上传播
+            throw e;
         } catch (Exception e) {
-            logger.error("MVEL执行失败: 表达式={}, 错误类型={}, 错误信息={}", 
+            logger.error("MVEL执行失败: 表达式={}, 错误类型={}, 错误信息={}",
                     expression.length() > 200 ? expression.substring(0, 200) + "..." : expression,
                     e.getClass().getName(),
                     e.getMessage());
-            
+
             if (e.getCause() != null) {
-                logger.error("MVEL执行失败-根因: 类型={}, 信息={}", 
+                logger.error("MVEL执行失败-根因: 类型={}, 信息={}",
                         e.getCause().getClass().getName(),
                         e.getCause().getMessage());
             }
-            
+
             throw new IllegalArgumentException("表达式执行错误: " + e.getMessage(), e);
         }
     }
@@ -260,6 +304,7 @@ public class MvelExpressionEngine {
         boolean inDoubleQuote = false;      // 双引号字符串内
         boolean inLineComment = false;      // 行注释内 //
         boolean inBlockComment = false;     // 块注释内 /* */
+        int parenDepth = 0;                 // 括号深度（for循环括号内的分号不分割）
         char prevChar = '\0';
         for (int i = 0; i < expression.length(); i++) {
             char c = expression.charAt(i);
@@ -318,8 +363,16 @@ public class MvelExpressionEngine {
                 prevChar = c;
                 continue;
             }
-            // 只有不在字符串内时才按分号分割
-            if (c == ';' && !inSingleQuote && !inDoubleQuote) {
+            // 追踪括号深度（不在字符串内时）
+            if (!inSingleQuote && !inDoubleQuote) {
+                if (c == '(') {
+                    parenDepth++;
+                } else if (c == ')') {
+                    parenDepth--;
+                }
+            }
+            // 只有不在字符串内且不在括号内时才按分号分割
+            if (c == ';' && !inSingleQuote && !inDoubleQuote && parenDepth == 0) {
                 String segment = current.toString().trim();
                 if (!segment.isEmpty()) {
                     result.add(segment);

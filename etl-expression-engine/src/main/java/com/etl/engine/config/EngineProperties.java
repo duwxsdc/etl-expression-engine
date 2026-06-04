@@ -17,6 +17,8 @@ public class EngineProperties {
     private int maxExpressionLength = 10000;
     private boolean enableSqlExecution = true;
     private boolean sqlReadonly = true;
+    private boolean interruptOnTimeout = true;
+    private long interruptWaitMs = 100;
 
     public EngineProperties() {
     }
@@ -59,5 +61,21 @@ public class EngineProperties {
 
     public void setSqlReadonly(boolean sqlReadonly) {
         this.sqlReadonly = sqlReadonly;
+    }
+
+    public boolean isInterruptOnTimeout() {
+        return interruptOnTimeout;
+    }
+
+    public void setInterruptOnTimeout(boolean interruptOnTimeout) {
+        this.interruptOnTimeout = interruptOnTimeout;
+    }
+
+    public long getInterruptWaitMs() {
+        return interruptWaitMs;
+    }
+
+    public void setInterruptWaitMs(long interruptWaitMs) {
+        this.interruptWaitMs = interruptWaitMs;
     }
 }

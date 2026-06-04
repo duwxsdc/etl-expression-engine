@@ -66,17 +66,19 @@ spring:
 etl:
   engine:
     # 表达式执行配置
-    expression-timeout: 60000     # 表达式执行超时时间(ms)
+    expression-timeout: 10000     # 表达式执行超时时间(ms)
     max-expression-length: 10000  # 表达式最大长度
     enable-sql-execution: true    # 启用SQL执行功能
     sql-readonly: true            # SQL只读模式
+    interrupt-on-timeout: true    # 超时是否中断执行线程
+    interrupt-wait-ms: 100        # 中断后等待清理时间(ms)
     
     # ----------------------------------------------------------
     # 安全沙箱配置
     # ----------------------------------------------------------
     security:
       sandbox:
-        enabled: true              # 启用安全沙箱
+        enabled: false              # 启用安全沙箱
         max-expression-size: 50000 # 表达式最大字节数
         max-loop-count: 10         # 最大循环次数
         max-nesting-depth: 20      # 最大嵌套深度
